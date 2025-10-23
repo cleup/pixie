@@ -2,14 +2,11 @@
 
 namespace Cleup\Pixie;
 
-/**
- * Image manager facade for easy image manipulation
- * Provides static methods for common image operations
- */
 class ImageManager
 {
     /**
      * Create image instance from file path
+     * 
      * @param string $path Image file path
      * @param string $driver Driver name
      * @return Image Image instance
@@ -22,6 +19,7 @@ class ImageManager
 
     /**
      * Create image instance from binary data
+     * 
      * @param string $data Binary image data
      * @param string $driver Driver name
      * @return Image Image instance
@@ -34,13 +32,14 @@ class ImageManager
 
     /**
      * Get image information
+     * 
      * @param string $path Image file path
      * @return array Image information
      */
     public static function getInfo(string $path): array
     {
         $info = getimagesize($path);
-        
+
         return [
             'width' => $info[0],
             'height' => $info[1],
@@ -52,38 +51,76 @@ class ImageManager
     }
 
     /**
-     * Check if image format is supported
+     * Check if image format is supported by MIME type
+     * 
      * @param string $path Image file path
      * @return bool True if format supported
      */
     public static function isSupportedFormat(string $path): bool
     {
-        $supported = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        return in_array($extension, $supported);
+        if (!file_exists($path)) {
+            return false;
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $path);
+        finfo_close($finfo);
+
+        $supportedMimeTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/bmp',
+            'image/x-ms-bmp',
+        ];
+
+        return in_array($mimeType, $supportedMimeTypes);
+    }
+
+    /**
+     * Get MIME type from file
+     * 
+     * @param string $path File path
+     * @return string MIME type
+     */
+    public static function getMimeType(string $path): string
+    {
+        if (!file_exists($path)) {
+            throw new \RuntimeException("File not found: {$path}");
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $path);
+        finfo_close($finfo);
+
+        return $mimeType ?: 'application/octet-stream';
     }
 
     /**
      * Get available drivers
+     * 
      * @return array Available drivers
      */
     public static function getAvailableDrivers(): array
     {
         $drivers = [];
-        
+
         if (extension_loaded('gd')) {
             $drivers[] = 'gd';
         }
-        
+
         if (extension_loaded('imagick')) {
             $drivers[] = 'imagick';
         }
-        
+
         return $drivers;
     }
 
     /**
      * Check if driver is available
+     * 
      * @param string $driver Driver name
      * @return bool True if driver available
      */
@@ -94,17 +131,17 @@ class ImageManager
 
     /**
      * Get recommended driver
+     * 
      * @return string Recommended driver name
      */
     public static function getRecommendedDriver(): string
     {
         $drivers = self::getAvailableDrivers();
-        
-        // Предпочитаем Imagick для лучшего качества
+
         if (in_array('imagick', $drivers)) {
             return 'imagick';
         }
-        
+
         return $drivers[0] ?? 'auto';
     }
 }

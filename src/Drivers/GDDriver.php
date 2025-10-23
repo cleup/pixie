@@ -6,16 +6,13 @@ use Cleup\Pixie\Interfaces\DriverInterface;
 use Cleup\Pixie\Exceptions\ImageException;
 use GdImage;
 
-/**
- * GD driver for image manipulation
- * Provides high-quality image processing for static images
- */
 class GDDriver implements DriverInterface
 {
     private $image;
     private $width;
     private $height;
     private $type;
+    private $mimeType;
 
     /**
      * {@inheritdoc}
@@ -26,7 +23,9 @@ class GDDriver implements DriverInterface
             throw ImageException::fileNotFound($path);
         }
 
-        $this->type = $this->getImageType($path);
+        $mimeType = $this->getMimeTypeFromFile($path);
+        $this->mimeType = $mimeType;
+        $this->type = $this->getTypeFromMimeType($mimeType);
 
         switch ($this->type) {
             case 'gif':
@@ -71,7 +70,9 @@ class GDDriver implements DriverInterface
 
         $this->width = imagesx($this->image);
         $this->height = imagesy($this->image);
-        $this->type = 'jpeg';
+        $this->mimeType = $this->getMimeTypeFromString($data);
+        $this->type = $this->getTypeFromMimeType($this->mimeType);
+
         $this->preserveTransparency();
     }
 
@@ -91,6 +92,8 @@ class GDDriver implements DriverInterface
             $this->height = imagesy($this->image);
         }
 
+        $this->mimeType = 'image/jpeg';
+        $this->type = 'jpeg';
         $this->preserveTransparency();
     }
 
@@ -99,10 +102,10 @@ class GDDriver implements DriverInterface
      */
     public function save(string $path, ?int $quality = null, ?string $format = null): bool
     {
-        $format = $format ?: pathinfo($path, PATHINFO_EXTENSION) ?: $this->type;
+        $format = $format ?: $this->type;
         $format = strtolower($format);
-
         $quality = $this->normalizeQuality($quality, $format);
+        $this->preserveTransparency();
 
         switch ($format) {
             case 'jpg':
@@ -128,6 +131,7 @@ class GDDriver implements DriverInterface
     {
         $format = $format ?: $this->type;
         $quality = $this->normalizeQuality($quality, $format);
+        $this->preserveTransparency();
 
         ob_start();
 
@@ -190,9 +194,16 @@ class GDDriver implements DriverInterface
     /**
      * {@inheritdoc}
      */
+    public function getMimeType(): string
+    {
+        return $this->mimeType ?: $this->getMimeTypeFromType($this->type);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function isAnimated(): bool
     {
-        // GD не поддерживает анимированные изображения
         return false;
     }
 
@@ -238,14 +249,9 @@ class GDDriver implements DriverInterface
     public function resizeCanvas(int $width, int $height, string $position = 'center'): void
     {
         $newImage = imagecreatetruecolor($width, $height);
-        $this->preserveTransparency($newImage);
-
-        // Создаем прозрачный фон
-        $transparent = imagecolorallocatealpha($newImage, 0, 0, 0, 127);
-        imagefill($newImage, 0, 0, $transparent);
+        $this->preserveTransparency($newImage, true);
 
         list($x, $y) = $this->calculatePosition($position, $width, $height);
-
         imagecopy(
             $newImage,
             $this->image,
@@ -256,8 +262,8 @@ class GDDriver implements DriverInterface
             $this->width,
             $this->height
         );
-
         imagedestroy($this->image);
+
         $this->image = $newImage;
         $this->width = $width;
         $this->height = $height;
@@ -296,13 +302,10 @@ class GDDriver implements DriverInterface
         $ratio = $this->width / $this->height;
         $targetRatio = $width / $height;
 
-        // Определяем размеры для обрезки
         if ($ratio > $targetRatio) {
-            // Ширина изображения больше целевой - обрезаем по ширине
             $newHeight = $height;
             $newWidth = (int) round($height * $ratio);
         } else {
-            // Высота изображения больше целевой - обрезаем по высоте
             $newWidth = $width;
             $newHeight = (int) round($width / $ratio);
         }
@@ -312,13 +315,9 @@ class GDDriver implements DriverInterface
             $newHeight = min($newHeight, $this->height);
         }
 
-        // Сначала изменяем размер до максимального, чтобы заполнить область
         $this->resize($newWidth, $newHeight, false);
-
-        // Затем обрезаем до точных размеров
         $x = (int) max(0, ($newWidth - $width) / 2);
         $y = (int) max(0, ($newHeight - $height) / 2);
-
         $this->crop($x, $y, $width, $height);
     }
 
@@ -329,12 +328,11 @@ class GDDriver implements DriverInterface
     {
         $rgb = $this->hexToRgb($backgroundColor);
         $bgColor = imagecolorallocate($this->image, $rgb[0], $rgb[1], $rgb[2]);
-
         $this->image = imagerotate($this->image, $angle, $bgColor);
         $this->width = imagesx($this->image);
         $this->height = imagesy($this->image);
-
         imagecolordeallocate($this->image, $bgColor);
+        $this->preserveTransparency();
     }
 
     /**
@@ -490,9 +488,7 @@ class GDDriver implements DriverInterface
             $offsetY
         );
 
-        imagealphablending($watermark, true);
         imagealphablending($this->image, true);
-
         imagecopy(
             $this->image,
             $watermark,
@@ -503,15 +499,14 @@ class GDDriver implements DriverInterface
             $wmWidth,
             $wmHeight
         );
+
+        $this->preserveTransparency();
     }
 
     /**
      * {@inheritdoc}
      */
-    public function stripExif(): void
-    {
-        // EXIF данные автоматически удаляются при обработке в GD
-    }
+    public function stripExif(): void {}
 
     /**
      * {@inheritdoc}
@@ -532,7 +527,7 @@ class GDDriver implements DriverInterface
     /**
      * Preserve transparency for PNG and GIF
      */
-    private function preserveTransparency($image = null): void
+    private function preserveTransparency($image = null, bool $fillTransparent = false): void
     {
         $target = $image ?: $this->image;
 
@@ -540,19 +535,102 @@ class GDDriver implements DriverInterface
             imagealphablending($target, false);
             imagesavealpha($target, true);
 
-            // Создаем прозрачный цвет для заливки
-            $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
-            imagefill($target, 0, 0, $transparent);
+            if ($fillTransparent && $image !== null) {
+                $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+                imagefill($target, 0, 0, $transparent);
+            }
+        } else {
+            imagealphablending($target, true);
         }
     }
 
     /**
-     * Get image type from file
+     * Get MIME type from file using finfo
      */
-    private function getImageType(string $path): string
+    private function getMimeTypeFromFile(string $path): string
     {
-        $info = getimagesize($path);
-        return image_type_to_extension($info[2], false);
+        if (!file_exists($path)) {
+            throw ImageException::fileNotFound($path);
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $path);
+        finfo_close($finfo);
+
+        if (!$mimeType || !$this->isSupportedMimeType($mimeType)) {
+            throw ImageException::unsupportedFormat($mimeType);
+        }
+
+        return $mimeType;
+    }
+
+    /**
+     * Get MIME type from string data
+     */
+    private function getMimeTypeFromString(string $data): string
+    {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_buffer($finfo, $data);
+        finfo_close($finfo);
+
+        if (!$mimeType || !$this->isSupportedMimeType($mimeType)) {
+            throw ImageException::unsupportedFormat($mimeType);
+        }
+
+        return $mimeType;
+    }
+
+    /**
+     * Get image type from MIME type
+     */
+    private function getTypeFromMimeType(string $mimeType): string
+    {
+        $mimeToType = [
+            'image/jpeg' => 'jpeg',
+            'image/jpg' => 'jpeg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/bmp' => 'bmp',
+            'image/x-ms-bmp' => 'bmp',
+        ];
+
+        return $mimeToType[$mimeType] ?? throw ImageException::unsupportedFormat($mimeType);
+    }
+
+    /**
+     * Get MIME type from image type
+     */
+    private function getMimeTypeFromType(string $type): string
+    {
+        $typeToMime = [
+            'jpeg' => 'image/jpeg',
+            'jpg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+        ];
+
+        return $typeToMime[$type] ?? 'image/jpeg';
+    }
+
+    /**
+     * Check if MIME type is supported
+     */
+    private function isSupportedMimeType(string $mimeType): bool
+    {
+        $supportedMimeTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/bmp',
+            'image/x-ms-bmp',
+        ];
+
+        return in_array($mimeType, $supportedMimeTypes);
     }
 
     /**
