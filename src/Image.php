@@ -9,10 +9,6 @@ use Cleup\Pixie\Drivers\ImagickDriver;
 use Cleup\Pixie\Exceptions\DriverException;
 use Cleup\Pixie\Exceptions\InvalidConfigException;
 
-/**
- * Main image manipulation class
- * Provides fluent interface for image operations with quality preservation
- */
 class Image implements ImageInterface
 {
     private DriverInterface $driver;
@@ -70,7 +66,7 @@ class Image implements ImageInterface
         $format = $format ?: $this->getType();
         $data = $this->toString($format, $quality);
 
-        header('Content-Type: ' . $this->getMimeType($format));
+        header('Content-Type: ' . $this->getMimeType());
         header('Content-Length: ' . strlen($data));
         echo $data;
     }
@@ -110,6 +106,14 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
+    public function getMimeType(): string
+    {
+        return $this->driver->getMimeType();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function isAnimated(): bool
     {
         return $this->driver->isAnimated();
@@ -118,8 +122,11 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function resize(int $width, ?int $height = null, bool $preserveAspectRatio = true): self
-    {
+    public function resize(
+        int $width,
+        ?int $height = null,
+        bool $preserveAspectRatio = true
+    ): self {
         $height = $height ?? (int) round($width / $this->getAspectRatio());
         $this->driver->resize($width, $height, $preserveAspectRatio);
         return $this;
@@ -159,10 +166,10 @@ class Image implements ImageInterface
     public function resizeToFit(int $maxWidth, int $maxHeight, bool $upscale = false): self
     {
         $ratio = $this->getAspectRatio();
-        
+
         $width = $maxWidth;
         $height = (int) round($maxWidth / $ratio);
-        
+
         if ($height > $maxHeight) {
             $height = $maxHeight;
             $width = (int) round($maxHeight * $ratio);
@@ -408,21 +415,6 @@ class Image implements ImageInterface
             'gd' => new GDDriver(),
             'imagick' => new ImagickDriver(),
             default => throw InvalidConfigException::invalidDriver($driverName),
-        };
-    }
-
-    /**
-     * Get MIME type for format
-     */
-    private function getMimeType(string $format): string
-    {
-        return match (strtolower($format)) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'bmp' => 'image/bmp',
-            default => 'application/octet-stream',
         };
     }
 }

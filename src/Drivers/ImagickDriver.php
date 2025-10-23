@@ -6,16 +6,13 @@ use Cleup\Pixie\Interfaces\DriverInterface;
 use Cleup\Pixie\Exceptions\DriverException;
 use Cleup\Pixie\Exceptions\ImageException;
 
-/**
- * Imagick driver for high-quality image manipulation
- * Provides excellent quality preservation and animation support
- */
 class ImagickDriver implements DriverInterface
 {
     private \Imagick $image;
     private int $width;
     private int $height;
     private string $type;
+    private string $mimeType;
     private bool $isAnimated = false;
 
     /**
@@ -40,26 +37,16 @@ class ImagickDriver implements DriverInterface
 
         try {
             $this->image = new \Imagick();
-
-            // Устанавливаем правильный цветовой профиль перед загрузкой
+            $this->mimeType = $this->getMimeTypeFromFile($path);
+            $this->type = $this->getTypeFromMimeType($this->mimeType);
             $this->image->setBackgroundColor(new \ImagickPixel('white'));
-
-            // Читаем изображение с правильными настройками
             $this->image->readImage($path);
-
-            // Исправляем проблему с черными JPG изображениями
             $this->fixBlackImageIssue();
-
-            $this->type = strtolower($this->image->getImageFormat());
             $this->isAnimated = $this->image->getNumberImages() > 1;
-
             $this->width = $this->image->getImageWidth();
             $this->height = $this->image->getImageHeight();
-
-            // Оптимизация для работы с изображениями
             $this->image->setImageBackgroundColor(new \ImagickPixel('transparent'));
 
-            // Для JPG изображений устанавливаем правильный цветовой профиль
             if (in_array($this->type, ['jpeg', 'jpg'])) {
                 $this->image->setImageColorspace(\Imagick::COLORSPACE_SRGB);
             }
@@ -75,14 +62,11 @@ class ImagickDriver implements DriverInterface
     {
         try {
             $this->image = new \Imagick();
+            $this->mimeType = $this->getMimeTypeFromString($data);
+            $this->type = $this->getTypeFromMimeType($this->mimeType);
             $this->image->readImageBlob($data);
-
-            // Исправляем проблему с черными изображениями
             $this->fixBlackImageIssue();
-
-            $this->type = strtolower($this->image->getImageFormat());
             $this->isAnimated = $this->image->getNumberImages() > 1;
-
             $this->width = $this->image->getImageWidth();
             $this->height = $this->image->getImageHeight();
         } catch (\ImagickException $e) {
@@ -101,6 +85,7 @@ class ImagickDriver implements DriverInterface
 
         $this->image = $resource;
         $this->type = strtolower($this->image->getImageFormat());
+        $this->mimeType = $this->getMimeTypeFromType($this->type);
         $this->isAnimated = $this->image->getNumberImages() > 1;
         $this->width = $this->image->getImageWidth();
         $this->height = $this->image->getImageHeight();
@@ -111,7 +96,7 @@ class ImagickDriver implements DriverInterface
      */
     public function save(string $path, ?int $quality = null, ?string $format = null): bool
     {
-        $format = $format ?: pathinfo($path, PATHINFO_EXTENSION) ?: $this->type;
+        $format = $format ?: $this->type;
         $format = strtolower($format);
 
         $quality = $this->normalizeQuality($quality, $format);
@@ -119,7 +104,6 @@ class ImagickDriver implements DriverInterface
         try {
             $image = $this->prepareImageForSave($format, $quality);
 
-            // Для анимированных GIF сохраняем все кадры
             if ($this->isAnimated && $format === 'gif') {
                 $image = $image->deconstructImages();
                 return $image->writeImages($path, true);
@@ -142,7 +126,6 @@ class ImagickDriver implements DriverInterface
         try {
             $image = $this->prepareImageForSave($format, $quality);
 
-            // Для анимированных GIF
             if ($this->isAnimated && $format === 'gif') {
                 $image = $image->deconstructImages();
             }
@@ -183,6 +166,14 @@ class ImagickDriver implements DriverInterface
     public function getType(): string
     {
         return $this->type;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getMimeType(): string
+    {
+        return $this->mimeType ?: $this->getMimeTypeFromType($this->type);
     }
 
     /**
@@ -277,6 +268,7 @@ class ImagickDriver implements DriverInterface
             throw ImageException::operationFailed('crop');
         }
     }
+
     /**
      * {@inheritdoc}
      */
@@ -285,13 +277,10 @@ class ImagickDriver implements DriverInterface
         $ratio = $this->width / $this->height;
         $targetRatio = $width / $height;
 
-        // Определяем размеры для обрезки
         if ($ratio > $targetRatio) {
-            // Ширина изображения больше целевой - обрезаем по ширине
             $newHeight = $height;
             $newWidth = (int) round($height * $ratio);
         } else {
-            // Высота изображения больше целевой - обрезаем по высоте
             $newWidth = $width;
             $newHeight = (int) round($width / $ratio);
         }
@@ -306,26 +295,18 @@ class ImagickDriver implements DriverInterface
                 $this->image = $this->image->coalesceImages();
 
                 foreach ($this->image as $frame) {
-                    // Изменяем размер
                     $frame->resizeImage($newWidth, $newHeight, \Imagick::FILTER_LANCZOS, 1);
-
-                    // Обрезаем до точных размеров
                     $x = (int) max(0, ($newWidth - $width) / 2);
                     $y = (int) max(0, ($newHeight - $height) / 2);
-
                     $frame->cropImage($width, $height, $x, $y);
                     $frame->setImagePage(0, 0, 0, 0);
                 }
 
                 $this->image = $this->image->deconstructImages();
             } else {
-                // Изменяем размер
                 $this->image->resizeImage($newWidth, $newHeight, \Imagick::FILTER_LANCZOS, 1);
-
-                // Обрезаем до точных размеров
                 $x = (int) max(0, ($newWidth - $width) / 2);
                 $y = (int) max(0, ($newHeight - $height) / 2);
-
                 $this->image->cropImage($width, $height, $x, $y);
                 $this->image->setImagePage(0, 0, 0, 0);
             }
@@ -662,27 +643,109 @@ class ImagickDriver implements DriverInterface
     }
 
     /**
+     * Get MIME type from file using finfo
+     */
+    private function getMimeTypeFromFile(string $path): string
+    {
+        if (!file_exists($path)) {
+            throw ImageException::fileNotFound($path);
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $path);
+        finfo_close($finfo);
+
+        if (!$mimeType || !$this->isSupportedMimeType($mimeType)) {
+            throw ImageException::unsupportedFormat($mimeType);
+        }
+
+        return $mimeType;
+    }
+
+    /**
+     * Get MIME type from string data
+     */
+    private function getMimeTypeFromString(string $data): string
+    {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_buffer($finfo, $data);
+        finfo_close($finfo);
+
+        if (!$mimeType || !$this->isSupportedMimeType($mimeType)) {
+            throw ImageException::unsupportedFormat($mimeType);
+        }
+
+        return $mimeType;
+    }
+
+    /**
+     * Get image type from MIME type
+     */
+    private function getTypeFromMimeType(string $mimeType): string
+    {
+        $mimeToType = [
+            'image/jpeg' => 'jpeg',
+            'image/jpg' => 'jpeg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/bmp' => 'bmp',
+            'image/x-ms-bmp' => 'bmp',
+        ];
+
+        return $mimeToType[$mimeType] ?? throw ImageException::unsupportedFormat($mimeType);
+    }
+
+    /**
+     * Get MIME type from image type
+     */
+    private function getMimeTypeFromType(string $type): string
+    {
+        $typeToMime = [
+            'jpeg' => 'image/jpeg',
+            'jpg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+        ];
+
+        return $typeToMime[$type] ?? 'image/jpeg';
+    }
+
+    /**
+     * Check if MIME type is supported
+     */
+    private function isSupportedMimeType(string $mimeType): bool
+    {
+        $supportedMimeTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/bmp',
+            'image/x-ms-bmp',
+        ];
+
+        return in_array($mimeType, $supportedMimeTypes);
+    }
+
+    /**
      * Fix black image issue with JPG files
      */
     private function fixBlackImageIssue(): void
     {
         try {
-            // Проверяем, является ли изображение JPG и имеет ли проблему с черным цветом
             $format = strtolower($this->image->getImageFormat());
 
             if (in_array($format, ['jpeg', 'jpg'])) {
-                // Устанавливаем правильный цветовой профиль
                 $this->image->setImageColorspace(\Imagick::COLORSPACE_SRGB);
-
-                // Убеждаемся, что изображение имеет правильный тип
                 $this->image->setImageType(\Imagick::IMGTYPE_TRUECOLOR);
-
-                // Устанавливаем формат сжатия
                 $this->image->setImageCompression(\Imagick::COMPRESSION_JPEG);
                 $this->image->setImageCompressionQuality(95);
             }
         } catch (\ImagickException $e) {
-            // Игнорируем ошибки при исправлении
         }
     }
 
@@ -693,15 +756,12 @@ class ImagickDriver implements DriverInterface
     {
         $image = clone $this->image;
 
-        // Установка формата
         if ($format !== $this->type) {
             $image->setImageFormat($format);
         }
 
-        // Установка качества с оптимальными настройками
         $this->setImageQuality($image, $quality, $format);
 
-        // Оптимизация для разных форматов
         switch ($format) {
             case 'jpeg':
             case 'jpg':
@@ -730,7 +790,6 @@ class ImagickDriver implements DriverInterface
         if (in_array($format, ['jpeg', 'jpg', 'webp'])) {
             $image->setImageCompressionQuality($quality);
         } elseif ($format === 'png') {
-            // Для PNG используем сжатие вместо качества
             $compression = (int) ((100 - $quality) / 100 * 9);
             $image->setImageCompressionQuality($compression);
         }

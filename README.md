@@ -233,10 +233,11 @@ try {
 - `output(?string $format = null, ?int $quality = null): void`
 
 #### Information
-- `getWidth(): int`s
+- `getWidth(): int`
 - `getHeight(): int`
 - `getAspectRatio(): float`
 - `getType(): string`
+- `getMimeType(): string`
 - `isAnimated(): bool`
 - `getDriver(): DriverInterface`
 
