@@ -771,9 +771,6 @@ class ImagickDriver implements DriverInterface
             case 'png':
                 $image->setImageCompression(\Imagick::COMPRESSION_ZIP);
                 break;
-            case 'webp':
-                $image->setImageCompression(\Imagick::COMPRESSION_WEBP);
-                break;
             case 'gif':
                 $image->setImageCompression(\Imagick::COMPRESSION_LZW);
                 break;
