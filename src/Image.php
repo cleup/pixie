@@ -125,10 +125,11 @@ class Image implements ImageInterface
     public function resize(
         int $width,
         ?int $height = null,
-        bool $preserveAspectRatio = true
+        bool $preserveAspectRatio = true,
+        bool $upscale = false
     ): self {
         $height = $height ?? (int) round($width / $this->getAspectRatio());
-        $this->driver->resize($width, $height, $preserveAspectRatio);
+        $this->driver->resize($width, $height, $preserveAspectRatio, $upscale);
         return $this;
     }
 
@@ -142,7 +143,7 @@ class Image implements ImageInterface
         }
 
         $height = (int) round($width / $this->getAspectRatio());
-        $this->driver->resize($width, $height, false);
+        $this->driver->resize($width, $height, false, $upscale);
         return $this;
     }
 
@@ -156,7 +157,7 @@ class Image implements ImageInterface
         }
 
         $width = (int) round($height * $this->getAspectRatio());
-        $this->driver->resize($width, $height, false);
+        $this->driver->resize($width, $height, false, $upscale);
         return $this;
     }
 
@@ -180,7 +181,7 @@ class Image implements ImageInterface
             $height = min($height, $this->getHeight());
         }
 
-        $this->driver->resize($width, $height, false);
+        $this->driver->resize($width, $height, false, $upscale);
         return $this;
     }
 
@@ -196,11 +197,11 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function scale(float $ratio): self
+    public function scale(float $ratio, bool $allowUpscale = true): self
     {
         $width = (int) round($this->getWidth() * $ratio);
         $height = (int) round($this->getHeight() * $ratio);
-        $this->driver->resize($width, $height, false);
+        $this->driver->resize($width, $height, false, $allowUpscale);
         return $this;
     }
 

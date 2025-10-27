@@ -98,13 +98,13 @@ interface ImageInterface
 
     /**
      * Resize image
-     * 
+     *
      * @param int $width Target width
-     * @param int|null $height Target height (auto if null)
-     * @param bool $preserveAspectRatio Maintain proportions
-     * @return self
+     * @param int|null $height Target height (optional, calculated from aspect ratio if not provided)
+     * @param bool $preserveAspectRatio Whether to preserve aspect ratio
+     * @param bool $upscale Whether to allow upscaling (increasing image size)
      */
-    public function resize(int $width, ?int $height = null, bool $preserveAspectRatio = true): self;
+    public function resize(int $width, ?int $height = null, bool $preserveAspectRatio = true, bool $upscale = false): self;
 
     /**
      * Resize to specific width
@@ -146,11 +146,11 @@ interface ImageInterface
 
     /**
      * Scale image by ratio
-     * 
+     *
      * @param float $ratio Scale ratio
-     * @return self
+     * @param bool $upscale Whether to allow upscaling
      */
-    public function scale(float $ratio): self;
+    public function scale(float $ratio, bool $upscale = false): self;
 
     /**
      * Crop image

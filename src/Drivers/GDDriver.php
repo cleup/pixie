@@ -210,8 +210,13 @@ class GDDriver implements DriverInterface
     /**
      * {@inheritdoc}
      */
-    public function resize(int $width, int $height, bool $preserveAspectRatio = true): void
+    public function resize(int $width, int $height, bool $preserveAspectRatio = true, bool $upscale = false): void
     {
+        if (!$upscale) {
+            $width = min($width, $this->width);
+            $height = min($height, $this->height);
+        }
+
         if ($preserveAspectRatio) {
             $ratio = min($width / $this->width, $height / $this->height);
             $newWidth = (int) round($this->width * $ratio);
@@ -315,7 +320,7 @@ class GDDriver implements DriverInterface
             $newHeight = min($newHeight, $this->height);
         }
 
-        $this->resize($newWidth, $newHeight, false);
+        $this->resize($newWidth, $newHeight, false, $upscale);
         $x = (int) max(0, ($newWidth - $width) / 2);
         $y = (int) max(0, ($newHeight - $height) / 2);
         $this->crop($x, $y, $width, $height);
