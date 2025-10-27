@@ -187,9 +187,20 @@ class ImagickDriver implements DriverInterface
     /**
      * {@inheritdoc}
      */
-    public function resize(int $width, int $height, bool $preserveAspectRatio = true): void
+    public function resize(int $width, int $height, bool $preserveAspectRatio = true, bool $upscale = false): void
     {
         try {
+            if (!$upscale) {
+                $width = min($width, $this->width);
+                $height = min($height, $this->height);
+            }
+
+            if ($this->getMimeType() == 'image/gif') {
+                echo PHP_EOL;
+                var_dump($width);
+                var_dump($height);
+            }
+
             if ($this->isAnimated) {
                 $this->image = $this->image->coalesceImages();
 
