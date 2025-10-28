@@ -30,5 +30,8 @@
     "psr-4": {
       "Cleup\\Pixie\\": "src/"
     }
+  },
+  "require-dev": {
+    "symfony/var-dumper": "^7.3"
   }
 }
