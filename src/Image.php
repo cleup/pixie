@@ -4,8 +4,8 @@ namespace Cleup\Pixie;
 
 use Cleup\Pixie\Interfaces\ImageInterface;
 use Cleup\Pixie\Interfaces\DriverInterface;
-use Cleup\Pixie\Drivers\GDDriver;
-use Cleup\Pixie\Drivers\ImagickDriver;
+use Cleup\Pixie\Drivers\GD\GDDriver;
+use Cleup\Pixie\Drivers\Imagick\ImagickDriver;
 use Cleup\Pixie\Exceptions\DriverException;
 use Cleup\Pixie\Exceptions\InvalidConfigException;
 
@@ -31,6 +31,23 @@ class Image implements ImageInterface
     {
         $this->driver->loadFromPath($path);
         return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function upscale(bool $enabled = false): self
+    {
+        $this->driver->upscale($enabled);
+        return $this;
+    }
+
+    /**
+     * Check if upscale is enabled
+     */
+    public function isUpscale(): bool
+    {
+        return $this->driver->isUpscale();
     }
 
     /**

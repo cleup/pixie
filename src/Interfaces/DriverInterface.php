@@ -5,6 +5,18 @@ namespace Cleup\Pixie\Interfaces;
 interface DriverInterface
 {
     /**
+     * Set upscale mode
+     * 
+     * @param bool $enabled
+     */
+    public function upscale(bool $enabled = true): self;
+
+    /**
+     * Check if upscale is enabled
+     */
+    public function isUpscale(): bool;
+
+    /**
      * Load image from file path
      * 
      * @param string $path Path to image file
@@ -119,9 +131,8 @@ interface DriverInterface
      * 
      * @param int $width Target width
      * @param int $height Target height
-     * @param bool $upscale Allow upscaling
      */
-    public function fit(int $width, int $height, bool $upscale = false): void;
+    public function fit(int $width, int $height): void;
 
     /**
      * Rotate image

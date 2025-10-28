@@ -1,18 +1,14 @@
 <?php
 
-namespace Cleup\Pixie\Drivers;
+namespace Cleup\Pixie\Drivers\GD;
 
-use Cleup\Pixie\Interfaces\DriverInterface;
+use Cleup\Pixie\Driver;
 use Cleup\Pixie\Exceptions\ImageException;
 use GdImage;
 
-class GDDriver implements DriverInterface
+class GDDriver extends Driver
 {
     private $image;
-    private $width;
-    private $height;
-    private $type;
-    private $mimeType;
 
     /**
      * {@inheritdoc}
@@ -114,6 +110,10 @@ class GDDriver implements DriverInterface
             case 'png':
                 return imagepng($this->image, $path, $this->getPngQuality($quality));
             case 'gif':
+                // Оптимизация для GIF - уменьшаем палитру
+                if (imageistruecolor($this->image)) {
+                    imagetruecolortopalette($this->image, false, 128);
+                }
                 return imagegif($this->image, $path);
             case 'webp':
                 return imagewebp($this->image, $path, $quality);
@@ -144,6 +144,10 @@ class GDDriver implements DriverInterface
                 imagepng($this->image, null, $this->getPngQuality($quality));
                 break;
             case 'gif':
+                // Оптимизация для GIF - уменьшаем палитру
+                if (imageistruecolor($this->image)) {
+                    imagetruecolortopalette($this->image, false, 128);
+                }
                 imagegif($this->image, null);
                 break;
             case 'webp':
@@ -170,49 +174,9 @@ class GDDriver implements DriverInterface
     /**
      * {@inheritdoc}
      */
-    public function getWidth(): int
+    public function resize(int $width, int $height, bool $preserveAspectRatio = true): void
     {
-        return $this->width;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getHeight(): int
-    {
-        return $this->height;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getType(): string
-    {
-        return $this->type;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getMimeType(): string
-    {
-        return $this->mimeType ?: $this->getMimeTypeFromType($this->type);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isAnimated(): bool
-    {
-        return false;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function resize(int $width, int $height, bool $preserveAspectRatio = true, bool $upscale = false): void
-    {
-        if (!$upscale) {
+        if (!$this->isUpscale()) {
             $width = min($width, $this->width);
             $height = min($height, $this->height);
         }
@@ -246,6 +210,33 @@ class GDDriver implements DriverInterface
         $this->image = $newImage;
         $this->width = $newWidth;
         $this->height = $newHeight;
+    }
+
+    /**
+     * Fit image to dimensions
+     */
+    public function fit(int $width, int $height): void
+    {
+        $ratio = $this->width / $this->height;
+        $targetRatio = $width / $height;
+
+        if ($ratio > $targetRatio) {
+            $newHeight = $height;
+            $newWidth = (int) round($height * $ratio);
+        } else {
+            $newWidth = $width;
+            $newHeight = (int) round($width / $ratio);
+        }
+
+        if (!$this->isUpscale()) {
+            $newWidth = min($newWidth, $this->width);
+            $newHeight = min($newHeight, $this->height);
+        }
+
+        $this->resize($newWidth, $newHeight, false);
+        $x = (int) max(0, ($newWidth - $width) / 2);
+        $y = (int) max(0, ($newHeight - $height) / 2);
+        $this->crop($x, $y, $width, $height);
     }
 
     /**
@@ -297,33 +288,6 @@ class GDDriver implements DriverInterface
         $this->image = $newImage;
         $this->width = $width;
         $this->height = $height;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function fit(int $width, int $height, bool $upscale = false): void
-    {
-        $ratio = $this->width / $this->height;
-        $targetRatio = $width / $height;
-
-        if ($ratio > $targetRatio) {
-            $newHeight = $height;
-            $newWidth = (int) round($height * $ratio);
-        } else {
-            $newWidth = $width;
-            $newHeight = (int) round($width / $ratio);
-        }
-
-        if (!$upscale) {
-            $newWidth = min($newWidth, $this->width);
-            $newHeight = min($newHeight, $this->height);
-        }
-
-        $this->resize($newWidth, $newHeight, false, $upscale);
-        $x = (int) max(0, ($newWidth - $width) / 2);
-        $y = (int) max(0, ($newHeight - $height) / 2);
-        $this->crop($x, $y, $width, $height);
     }
 
     /**
@@ -550,169 +514,10 @@ class GDDriver implements DriverInterface
     }
 
     /**
-     * Get MIME type from file using finfo
-     */
-    private function getMimeTypeFromFile(string $path): string
-    {
-        if (!file_exists($path)) {
-            throw ImageException::fileNotFound($path);
-        }
-
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_file($finfo, $path);
-        finfo_close($finfo);
-
-        if (!$mimeType || !$this->isSupportedMimeType($mimeType)) {
-            throw ImageException::unsupportedFormat($mimeType);
-        }
-
-        return $mimeType;
-    }
-
-    /**
-     * Get MIME type from string data
-     */
-    private function getMimeTypeFromString(string $data): string
-    {
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_buffer($finfo, $data);
-        finfo_close($finfo);
-
-        if (!$mimeType || !$this->isSupportedMimeType($mimeType)) {
-            throw ImageException::unsupportedFormat($mimeType);
-        }
-
-        return $mimeType;
-    }
-
-    /**
-     * Get image type from MIME type
-     */
-    private function getTypeFromMimeType(string $mimeType): string
-    {
-        $mimeToType = [
-            'image/jpeg' => 'jpeg',
-            'image/jpg' => 'jpeg',
-            'image/png' => 'png',
-            'image/gif' => 'gif',
-            'image/webp' => 'webp',
-            'image/bmp' => 'bmp',
-            'image/x-ms-bmp' => 'bmp',
-        ];
-
-        return $mimeToType[$mimeType] ?? throw ImageException::unsupportedFormat($mimeType);
-    }
-
-    /**
-     * Get MIME type from image type
-     */
-    private function getMimeTypeFromType(string $type): string
-    {
-        $typeToMime = [
-            'jpeg' => 'image/jpeg',
-            'jpg' => 'image/jpeg',
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'bmp' => 'image/bmp',
-        ];
-
-        return $typeToMime[$type] ?? 'image/jpeg';
-    }
-
-    /**
-     * Check if MIME type is supported
-     */
-    private function isSupportedMimeType(string $mimeType): bool
-    {
-        $supportedMimeTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/bmp',
-            'image/x-ms-bmp',
-        ];
-
-        return in_array($mimeType, $supportedMimeTypes);
-    }
-
-    /**
-     * Normalize quality value
-     */
-    private function normalizeQuality(?int $quality, string $format): int
-    {
-        if ($quality === null) {
-            return $format === 'png' ? 9 : 95;
-        }
-
-        if ($format === 'png') {
-            return max(0, min(9, (int) round(($quality / 100) * 9)));
-        }
-
-        return max(0, min(100, $quality));
-    }
-
-    /**
      * Convert quality to PNG compression level
      */
     private function getPngQuality(int $quality): int
     {
         return 9 - $quality;
-    }
-
-    /**
-     * Calculate position coordinates
-     */
-    private function calculatePosition(
-        string $position,
-        int $canvasWidth,
-        int $canvasHeight,
-        int $objectWidth = 0,
-        int $objectHeight = 0,
-        int $offsetX = 0,
-        int $offsetY = 0
-    ): array {
-        switch ($position) {
-            case 'top-left':
-                return [$offsetX, $offsetY];
-            case 'top':
-                return [($canvasWidth - $objectWidth) / 2, $offsetY];
-            case 'top-right':
-                return [$canvasWidth - $objectWidth - $offsetX, $offsetY];
-            case 'left':
-                return [$offsetX, ($canvasHeight - $objectHeight) / 2];
-            case 'center':
-                return [($canvasWidth - $objectWidth) / 2, ($canvasHeight - $objectHeight) / 2];
-            case 'right':
-                return [$canvasWidth - $objectWidth - $offsetX, ($canvasHeight - $objectHeight) / 2];
-            case 'bottom-left':
-                return [$offsetX, $canvasHeight - $objectHeight - $offsetY];
-            case 'bottom':
-                return [($canvasWidth - $objectWidth) / 2, $canvasHeight - $objectHeight - $offsetY];
-            case 'bottom-right':
-                return [$canvasWidth - $objectWidth - $offsetX, $canvasHeight - $objectHeight - $offsetY];
-            default:
-                return [0, 0];
-        }
-    }
-
-    /**
-     * Convert hex color to RGB
-     */
-    private function hexToRgb(string $hex): array
-    {
-        $hex = ltrim($hex, '#');
-
-        if (strlen($hex) === 3) {
-            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
-        }
-
-        return [
-            hexdec(substr($hex, 0, 2)),
-            hexdec(substr($hex, 2, 2)),
-            hexdec(substr($hex, 4, 2))
-        ];
     }
 }

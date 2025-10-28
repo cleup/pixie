@@ -12,6 +12,18 @@ interface ImageInterface
     public function __construct(string $driver = 'auto');
 
     /**
+     * Set upscale mode
+     * 
+     * @param bool $enabled
+     */
+    public function upscale(bool $enabled = true): self;
+
+    /**
+     * Check if upscale is enabled
+     */
+    public function isUpscale(): bool;
+
+    /**
      * Load image from file
      * 
      * @param string $path Image file path
