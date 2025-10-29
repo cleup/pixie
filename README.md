@@ -29,9 +29,13 @@ use Cleup\Pixie\ImageManager;
 // Create from file with auto driver detection
 $image = ImageManager::createFromPath('input.jpg');
 
+// Allow upscaling - we do not recommend enabling it without need.
+$image->upcale(true); // Default = false
+
 // Resize and save
 $image->resize(800, 600)
       ->save('output.jpg', 90);
+
 
 // Create thumbnail
 $image->fit(200, 200)
@@ -243,13 +247,13 @@ try {
 
 #### Transformations
 - `resize(int $width, ?int $height = null, bool $preserveAspectRatio = true): self`
-- `resizeToWidth(int $width, bool $upscale = false): self`
-- `resizeToHeight(int $height, bool $upscale = false): self`
-- `resizeToFit(int $maxWidth, int $maxHeight, bool $upscale = false): self`
-- `resizeToFill(int $width, int $height, bool $upscale = false): self`
+- `resizeToWidth(int $width): self`
+- `resizeToHeight(int $height): self`
+- `resizeToFit(int $maxWidth, int $maxHeight): self`
+- `resizeToFill(int $width, int $height): self`
 - `scale(float $ratio): self`
 - `crop(int $x, int $y, int $width, int $height): self`
-- `fit(int $width, int $height, bool $upscale = false): self`
+- `fit(int $width, int $height): self`
 - `rotate(float $angle, string $backgroundColor = '#000000'): self`
 - `flip(string $mode = 'horizontal'): self`
 - `flipHorizontal(): self`

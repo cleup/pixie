@@ -206,7 +206,7 @@ abstract class Driver implements DriverInterface
         if ($quality === null) {
             return match ($format) {
                 'png' => 6,
-                'gif' => 90,
+                'gif' => 100,
                 default => 85
             };
         }
