@@ -598,9 +598,8 @@ class ImagickDriver extends Driver
     {
         $image = clone $this->image;
 
-        // Для WEBP используем специальную обработку
         if ($format === 'webp') {
-            return $this->processWebP($image, $quality);
+            return $this->processWebp($image, $quality);
         }
 
         if ($format === 'gif') {
@@ -633,17 +632,11 @@ class ImagickDriver extends Driver
     private function processGif(Imagick $image, int $quality): Imagick
     {
         $optimized = clone $image;
-
-        // Устанавливаем формат
         $optimized->setImageFormat('gif');
-        // $image->optimizeImageLayers();
-        // $image->stripImage();
 
         if ($this->isAnimated) {
-            // Оптимизация анимированного GIF
             return $this->optimizeAnimatedGif($optimized, $quality);
         } else {
-            // Оптимизация статичного GIF
             return $this->optimizeStaticGif($optimized, $quality);
         }
     }
@@ -655,10 +648,7 @@ class ImagickDriver extends Driver
     {
         $optimized = clone $image;
 
-        // Вместо quantizeImage используем другие методы оптимизации
-
         if ($quality < 100) {
-            // Только для качества меньше 100% применяем оптимизацию
             $this->applyLosslessGifOptimization($optimized, $quality);
         }
 
@@ -673,7 +663,6 @@ class ImagickDriver extends Driver
     private function optimizeAnimatedGif(Imagick $image, int $quality): Imagick
     {
         if ($quality == 100) {
-            // Для 100% качества не применяем оптимизацию
             return $image;
         }
 
@@ -697,72 +686,51 @@ class ImagickDriver extends Driver
      */
     private function applyLosslessGifOptimization(Imagick $image, int $quality): void
     {
-        // Метод 1: Оптимизация палитры без изменения цветов
         $image->setImageType(Imagick::IMGTYPE_PALETTE);
-
-        // Метод 2: Убираем метаданные и комментарии
         $image->stripImage();
 
-        // Метод 3: Оптимизация LZW сжатия в зависимости от качества
-        if ($quality <= 50) {
-            // Для низкого качества - более агрессивная оптимизация
-            $image->setImageCompressionQuality(5);
-        } else {
-            // Для высокого качества - стандартная оптимизация
-            $image->setImageCompressionQuality(8);
+        if ($quality < 100) {
+            $colors = (int) (256 * ($quality / 100));
+            $colors = max(16, min(256, $colors));
+            $image->quantizeImage($colors, Imagick::COLORSPACE_RGB, 0, false, false);
         }
 
-        // Метод 4: Убираем неиспользуемые цвета из палитры
         try {
             $image->remapImage($image, Imagick::DITHERMETHOD_NO);
         } catch (\Exception $e) {
-            // Игнорируем ошибки remap
         }
     }
+
+
+
 
     /**
      * Process WEBP with forced quality application
      */
-    private function processWebP(Imagick $image, int $quality): Imagick
+    private function processWebp(Imagick $image, int $quality): Imagick
     {
-        // Создаем совершенно новое изображение для принудительного перекодирования
         $webpImage = new Imagick();
-
-        // Получаем изображение как PNG blob для чистого преобразования
         $image->setImageFormat('png');
         $pngBlob = $image->getImageBlob();
-
-        // Загружаем в новое изображение
         $webpImage->readImageBlob($pngBlob);
         $webpImage->setImageFormat('WEBP');
-
-        // Устанавливаем качество ПЕРЕД любыми операциями
         $webpImage->setImageCompressionQuality($quality);
         $webpImage->setImageCompression(Imagick::COMPRESSION_JPEG);
-
-        // Критически важные настройки для WEBP
         $webpImage->setOption('webp:lossless', 'false');
 
-        // Настраиваем метод сжатия в зависимости от качества
         if ($quality <= 30) {
-            $webpImage->setOption('webp:method', '6'); // максимальное сжатие
+            $webpImage->setOption('webp:method', '6');
         } elseif ($quality <= 70) {
-            $webpImage->setOption('webp:method', '5'); // среднее сжатие
+            $webpImage->setOption('webp:method', '5');
         } else {
-            $webpImage->setOption('webp:method', '4'); // стандартное сжатие
+            $webpImage->setOption('webp:method', '4');
         }
 
-        // Принудительно применяем настройки через перекодирование
         $webpBlob = $webpImage->getImageBlob();
-
-        // Создаем финальное изображение из blob
         $finalImage = new Imagick();
         $finalImage->readImageBlob($webpBlob);
         $finalImage->setImageFormat('WEBP');
-
-        // Убедимся, что качество установлено
         $finalImage->setImageCompressionQuality($quality);
-
         $webpImage->destroy();
 
         return $finalImage;
@@ -774,14 +742,11 @@ class ImagickDriver extends Driver
     private function setImageQuality(Imagick $image, int $quality, string $format): void
     {
         if (in_array($format, ['jpeg', 'jpg', 'webp'])) {
-            // JPEG и WEBP используют одинаковую шкалу качества 0-100
             $image->setImageCompressionQuality($quality);
         } elseif ($format === 'png') {
-            // PNG использует сжатие 0-9
             $compression = (int) ((100 - $quality) / 100 * 9);
             $image->setImageCompressionQuality($compression);
         }
-        // Для GIF качество не устанавливается
     }
 
     /**
