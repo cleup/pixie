@@ -110,7 +110,6 @@ class ImagickDriver extends Driver
 
             return $image->writeImage($path);
         } catch (ImagickDriverException $e) {
-            dd($e);
             throw ImageException::operationFailed('save');
         }
     }
@@ -598,32 +597,29 @@ class ImagickDriver extends Driver
     {
         $image = clone $this->image;
 
-        if ($format === 'webp') {
-            return $this->processWebp($image, $quality);
-        }
-
-        if ($format === 'gif') {
-            return $this->processGif($image, $quality);
-        }
-
-        if ($format !== $this->type) {
-            $image->setImageFormat($format);
-        }
-
-        $this->setImageQuality($image, $quality, $format);
-
         switch ($format) {
-            case 'jpeg':
-            case 'jpg':
-                $image->setImageCompression(Imagick::COMPRESSION_JPEG);
-                $image->setInterlaceScheme(Imagick::INTERLACE_PLANE);
-                break;
+            case 'webp':
+                return $this->processWebp($image, $quality);
             case 'png':
-                $image->setImageCompression(Imagick::COMPRESSION_ZIP);
-                break;
-        }
+                return $this->processPng($image, $quality);
+            case 'gif':
+                return $this->processGif($image, $quality);
+            default:
+                // Для JPEG и других форматов
+                if ($format !== $this->type) {
+                    $image->setImageFormat($format);
+                }
+                $this->setImageQuality($image, $quality, $format);
 
-        return $image;
+                // Оптимизация для JPEG
+                if (in_array($format, ['jpeg', 'jpg'])) {
+                    $image->setImageCompression(Imagick::COMPRESSION_JPEG);
+                    $image->setInterlaceScheme(Imagick::INTERLACE_PLANE);
+                    $image->stripImage(); // Удаляем метаданные
+                }
+
+                return $image;
+        }
     }
 
     /**
@@ -734,6 +730,25 @@ class ImagickDriver extends Driver
         $webpImage->destroy();
 
         return $finalImage;
+    }
+
+    /**
+     * Process PNG with proper compression
+     */
+    private function processPng(Imagick $image, int $quality): Imagick
+    {
+        $pngImage = clone $image;
+        $pngImage->setImageFormat('PNG');
+        $compressionLevel = (int) ((100 - $quality) / 100 * 9);
+        $pngImage->setImageCompressionQuality($compressionLevel);
+        $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
+        $pngImage->stripImage();
+
+        if ($pngImage->getImageType() === Imagick::IMGTYPE_TRUECOLOR) {
+            $pngImage->setImageType(Imagick::IMGTYPE_PALETTE);
+        }
+
+        return $pngImage;
     }
 
     /**

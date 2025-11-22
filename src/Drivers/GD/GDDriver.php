@@ -108,7 +108,8 @@ class GDDriver extends Driver
             case 'jpeg':
                 return imagejpeg($this->image, $path, $quality);
             case 'png':
-                return imagepng($this->image, $path, $this->getPngQuality($quality));
+                $compression = $this->qualityToPngCompression($quality);
+                return imagepng($this->image, $path, $compression);
             case 'gif':
                 // Оптимизация для GIF - уменьшаем палитру
                 if (imageistruecolor($this->image)) {
@@ -122,6 +123,11 @@ class GDDriver extends Driver
             default:
                 throw ImageException::unsupportedFormat($format);
         }
+    }
+
+    private function qualityToPngCompression(int $quality): int
+    {
+        return (int) round(9 - ($quality / 100 * 9));
     }
 
     /**
