@@ -739,16 +739,11 @@ class ImagickDriver extends Driver
     {
         $pngImage = clone $image;
         $pngImage->setImageFormat('PNG');
-
-        // Преобразуем процент качества в уровень сжатия PNG (0-9)
         $compressionLevel = (int) ((100 - $quality) / 100 * 9);
         $pngImage->setImageCompressionQuality($compressionLevel);
-
-        // Оптимизация PNG
         $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
         $pngImage->stripImage();
 
-        // Уменьшаем глубину цвета если возможно
         if ($pngImage->getImageType() === Imagick::IMGTYPE_TRUECOLOR) {
             $pngImage->setImageType(Imagick::IMGTYPE_PALETTE);
         }
