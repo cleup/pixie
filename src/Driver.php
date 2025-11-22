@@ -204,20 +204,17 @@ abstract class Driver implements DriverInterface
     protected function normalizeQuality(?int $quality, string $format): int
     {
         if ($quality === null) {
+
             return match ($format) {
-                'png' => 6,
+                'png' => 90,
                 'gif' => 100,
                 default => 85
             };
         }
 
-        if ($format === 'png') {
-            return max(0, min(9, $quality));
-        }
-
         return max(0, min(100, $quality));
     }
-
+    
     /**
      * Convert hex color to RGB
      */
