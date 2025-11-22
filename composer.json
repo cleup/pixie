@@ -1,6 +1,6 @@
 {
   "name": "cleup/pixie",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "An excellent library for working with images in PHP.",
   "keywords": [
     "pixie",
@@ -30,8 +30,5 @@
     "psr-4": {
       "Cleup\\Pixie\\": "src/"
     }
-  },
-  "require-dev": {
-    "symfony/var-dumper": "^7.3"
   }
 }
