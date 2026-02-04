@@ -28,4 +28,9 @@ class ImageException extends \Exception
     {
         return new self("Failed to preserve animation");
     }
+
+    public static function directoryNotFound(string $path): self
+    {
+        return new self("The directory was not found or is not writable: {$path}");
+    }
 }

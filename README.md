@@ -1,33 +1,59 @@
 # Pixie - Modern PHP Image Manipulation Library
+
 A powerful, flexible, and easy-to-use image manipulation library for PHP with support for both GD and Imagick drivers. Perfect for handling image processing tasks with excellent quality preservation and animation support.
 
 ## Features
+
 - 🖼️ Dual Driver Support - Choose between GD or Imagick based on your needs
-- 🎞️ Animation Support - Full animated GIF support with Imagick driver
+- 🎞️ Animation Support - Full animated GIF support
 - 🎯 High Quality - Excellent quality preservation with optimized algorithms
 - 📐 Multiple Operations - Resize, crop, rotate, flip, filters, and more
 - 💧 Transparency Support - Full alpha channel support for PNG and GIF
 - 🚀 Performance Optimized - Efficient memory usage and processing
 
 ## Installation
+
 ```bash
 composer require cleup/pixie
 ```
 
 ## Requirements
+
 - PHP 8.1 or higher
 - GD extension (for GD driver)
 - Imagick extension (for Imagick driver - recommended for advanced features)
+- Gifsicle for better optimization of GIF images
+
+## Recommendation
+
+If you plan to work with GIF images and want to optimize them or add animation support, it is recommended that you install Gifsicle. This tool can help you work with GIFs more efficiently and add animations where they are not currently supported, such as in conjunction with the GD library.
+
+```bash
+#  Ubuntu
+sudo apt-get install gifsicle
+
+# Centos
+sudo yum install gifsicle
+```
 
 ## Quick Start
 
 #### Using ImageManager (Recommended)
+
 ```php
 <?php
 use Cleup\Pixie\ImageManager;
 
 // Create from file with auto driver detection
 $image = ImageManager::createFromPath('input.jpg');
+
+// To optimize GIF performance, use Gifsicle
+$image
+    // Gifsicle will be available if installed
+    ->useGifsicle()
+    // If you want to get a minimum file size, you can select a value from 1 to 100.
+    // The higher this value, the smaller the file size will be, but the frame quality may deteriorate.
+    ->setGifsicleLossy(80);
 
 // Allow upscaling - we do not recommend enabling it without need.
 $image->upcale(true); // Default = false
@@ -44,6 +70,7 @@ $image->fit(200, 200)
 ```
 
 ### Using Image Class Directly
+
 ```php
 <?php
 
@@ -57,26 +84,29 @@ $image->load('input.png')
 ```
 
 ### Driver Comparison
+
 ##### GD Driver
+
 - ✅ Built-in PHP extension
 - ✅ Good performance for basic operations
 - ✅ Lower memory usage
-- ❌ No animated GIF support
-- ❌ Limited format support
+- ❌ Does not support animated GIFs without Gifsicle
 - ❌ Lower quality for some operations
 
 ##### Imagick Driver (Recommended)
+
 - ✅ Excellent quality output
 - ✅ Full animated GIF support
-- ✅ Wide format support (WebP, TIFF, etc.)
 - ✅ Advanced image processing features
 - ❌ Requires separate extension
 - ❌ Higher memory usage
 
-For most production applications, especially those requiring animated GIF support or highest quality output, we recommend using the Imagick driver.
+For most production applications, especially those that require support for animated GIF files or high-quality data output, we recommend using the Imagick driver in combination with the Gifsicle utility for optimal results.
 
 ## Basic Usage
+
 ### Loading Images
+
 ```php
 // From file
 $image = ImageManager::createFromPath('/path/to/photo.jpg');
@@ -87,19 +117,20 @@ $image = ImageManager::createFromString($data);
 
 // From URL (with error handling)
 try {
-    // Incorrect
-    $image = ImageManager::createFromPath('https://example.com/image.jpg');
-    /* Correct
+    // ✅ Correct
     $image = ImageManager::createFromString(
         file_get_contents('https://example.com/image.jpg')
     );
-    */
+
+    // ❌ Incorrect
+    $image = ImageManager::createFromPath('https://example.com/image.jpg');
 } catch (Cleup\Pixie\Exceptions\ImageException $e) {
     echo "Error loading image: " . $e->getMessage();
 }
 ```
 
 ### Saving Images
+
 ```php
 // Save with default quality
 $image->save('output.jpg');
@@ -115,7 +146,9 @@ $binaryData = $image->toString('png', 100);
 ```
 
 ## Image Operations
+
 ### Resizing
+
 ```php
 // Basic resize
 $image->resize(800, 600);
@@ -138,6 +171,7 @@ $image->resizeToFill(200, 200);
 ```
 
 ### Cropping
+
 ```php
 // Crop with coordinates
 $image->crop(100, 100, 400, 300);
@@ -147,6 +181,7 @@ $image->fit(300, 300);
 ```
 
 ### Transformations
+
 ```php
 // Rotation
 $image->rotate(45); // 45 degrees
@@ -162,6 +197,7 @@ $image->resizeCanvas(1000, 800, 'center');
 ```
 
 ### Filters and Effects
+
 ```php
 // Basic filters
 $image->blur(2);
@@ -179,7 +215,8 @@ $image->invert();
 ```
 
 ### Utility Methods
-```php 
+
+```php
 // Get image information
 $width = $image->getWidth();
 $height = $image->getHeight();
@@ -195,7 +232,8 @@ $driver = $image->getDriver();
 ```
 
 ## Error Handling
-```php 
+
+```php
 use Cleup\Pixie\Exceptions\ImageException;
 use Cleup\Pixie\Exceptions\DriverException;
 
@@ -212,24 +250,21 @@ try {
 ```
 
 ## API Reference
+
 ### ImageManager Static Methods
 
-    createFromPath(string $path, string $driver = 'auto'): Image
-
-    createFromString(string $data, string $driver = 'auto'): Image
-
-    getInfo(string $path): array
-
-    isSupportedFormat(string $path): bool
-
-    getAvailableDrivers(): array
-
-    isDriverAvailable(string $driver): bool
-
-    getRecommendedDriver(): string
+- `createFromPath(string $path, string $driver = 'auto'): Image`
+- `createFromString(string $data, string $driver = 'auto'): Image`
+- `getInfo(string $path): array`
+- `isSupportedFormat(string $path): bool`
+- `getAvailableDrivers(): array`
+- `isDriverAvailable(string $driver): bool`
+- `getRecommendedDriver(): string`
 
 ### Image Instance Methods
+
 #### Loading & Saving
+
 - `load(string $path): self`
 - `loadFromString(string $data): self`
 - `save(string $path, ?int $quality = null, ?string $format = null): bool`
@@ -237,6 +272,7 @@ try {
 - `output(?string $format = null, ?int $quality = null): void`
 
 #### Information
+
 - `getWidth(): int`
 - `getHeight(): int`
 - `getAspectRatio(): float`
@@ -246,6 +282,7 @@ try {
 - `getDriver(): DriverInterface`
 
 #### Transformations
+
 - `resize(int $width, ?int $height = null, bool $preserveAspectRatio = true): self`
 - `resizeToWidth(int $width): self`
 - `resizeToHeight(int $height): self`
@@ -260,10 +297,11 @@ try {
 - `flipVertical(): self`
 
 #### Filters & Effects
+
 - `blur(int $amount = 1): self`
 - `sharpen(int $amount = 1): self`
 - `brightness(int $level): self`
-- ` contrast(int $level): self`
+- `contrast(int $level): self`
 - `gamma(float $correction): self`
 - `colorize(int $red, int $green, int $blue): self`
 - `greyscale(): self`
