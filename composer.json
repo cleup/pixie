@@ -30,6 +30,7 @@
     "psr-4": {
       "Cleup\\Pixie\\": "src/"
     }
+
   },
   "require-dev": {
     "jetbrains/phpstorm-stubs": "^2025.3"
