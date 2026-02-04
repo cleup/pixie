@@ -1129,26 +1129,6 @@ class GDDriver extends Driver
     public function stripExif(): void {}
 
     /**
-     * {@inheritdoc}
-     */
-    public function destroy(): void
-    {
-        if ($this->image) {
-            $this->image = null;
-        }
-
-        $this->frames = [];
-    }
-
-    /**
-     * Destructor
-     */
-    public function __destruct()
-    {
-        $this->destroy();
-    }
-
-    /**
      * Preserve transparency for PNG and GIF
      * 
      * @param GdImage|null $image GD image resource

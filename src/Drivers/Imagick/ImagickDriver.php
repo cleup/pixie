@@ -851,23 +851,6 @@ class ImagickDriver extends Driver
     }
 
     /**
-     * {@inheritdoc}
-     */
-    public function destroy(): void
-    {
-        if (isset($this->image)) {
-            $this->image->clear();
-            $this->image->destroy();
-        }
-
-        // Delete temporary original file
-        if ($this->tempOriginalPath && file_exists($this->tempOriginalPath)) {
-            @unlink($this->tempOriginalPath);
-        }
-    }
-
-
-    /**
      * Fix black image issue with JPG files
      */
     private function fixBlackImageIssue(): void
@@ -1045,13 +1028,5 @@ class ImagickDriver extends Driver
         list($x, $y) = $this->calculatePosition($position, $width, $height);
 
         $frame->extentImage($width, $height, -$x, -$y);
-    }
-
-    /**
-     * Destructor
-     */
-    public function __destruct()
-    {
-        $this->destroy();
     }
 }

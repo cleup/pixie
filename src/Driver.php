@@ -494,9 +494,4 @@ abstract class Driver implements DriverInterface
 
         return $data;
     }
-
-    /**
-     * Destructor
-     */
-    abstract public function __destruct();
 }

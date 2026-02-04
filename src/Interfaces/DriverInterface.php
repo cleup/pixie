@@ -354,11 +354,4 @@ interface DriverInterface
      * @return void
      */
     public function stripExif(): void;
-
-    /**
-     * Clean up resources
-     *
-     * @return void
-     */
-    public function destroy(): void;
 }
