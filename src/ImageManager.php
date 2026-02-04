@@ -11,8 +11,10 @@ class ImageManager
      * @param string $driver Driver name
      * @return Image Image instance
      */
-    public static function createFromPath(string $path, string $driver = 'auto'): Image
-    {
+    public static function createFromPath(
+        string $path,
+        string $driver = 'auto'
+    ): Image {
         $image = new Image($driver);
         return $image->load($path);
     }
@@ -24,8 +26,10 @@ class ImageManager
      * @param string $driver Driver name
      * @return Image Image instance
      */
-    public static function createFromString(string $data, string $driver = 'auto'): Image
-    {
+    public static function createFromString(
+        string $data,
+        string $driver = 'auto'
+    ): Image {
         $image = new Image($driver);
         return $image->loadFromString($data);
     }
@@ -64,7 +68,6 @@ class ImageManager
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $path);
-        finfo_close($finfo);
 
         $supportedMimeTypes = [
             'image/jpeg',
@@ -93,7 +96,6 @@ class ImageManager
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $path);
-        finfo_close($finfo);
 
         return $mimeType ?: 'application/octet-stream';
     }

@@ -11,17 +11,84 @@ use Cleup\Pixie\Exceptions\InvalidConfigException;
 
 class Image implements ImageInterface
 {
+    /**
+     * @var DriverInterface Image processing driver instance
+     */
     private DriverInterface $driver;
+
+    /**
+     * @var string Name of the current driver (gd, imagick)
+     */
     private string $driverName;
 
     /**
+     * @var bool Force using Gifsicle for GIF optimization even with other drivers
+     */
+    private bool $forceGifsicle = false;
+
+    /**
      * Constructor
+     *
      * @param string $driver Driver name (auto|gd|imagick)
      */
     public function __construct(string $driver = 'auto')
     {
         $this->driverName = $this->resolveDriver($driver);
         $this->driver = $this->createDriver($this->driverName);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function useGifsicle(bool $enabled = true): self
+    {
+        $this->forceGifsicle = $enabled;
+        $this->driver->useGifsicle($enabled);
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isForceGifsicle(): bool
+    {
+        return $this->forceGifsicle;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isGifsicleAvailable(): bool
+    {
+        return $this->driver->isGifsicleAvailable();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setGifsiclePath(string $path): self
+    {
+        $this->driver->setGifsiclePath($path);
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setGifsicleLossy(int $value): self
+    {
+        $this->driver->setGifsicleLossy($value);
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getGifsicleLossy(): int
+    {
+        return $this->driver->getGifsicleLossy();
     }
 
     /**
@@ -43,7 +110,7 @@ class Image implements ImageInterface
     }
 
     /**
-     * Check if upscale is enabled
+     * {@inheritdoc}
      */
     public function isUpscale(): bool
     {
@@ -62,24 +129,31 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function save(string $path, ?int $quality = null, ?string $format = null): bool
-    {
+    public function save(
+        string $path,
+        ?int $quality = null,
+        ?string $format = null
+    ): bool {
         return $this->driver->save($path, $quality, $format);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function toString(?string $format = null, ?int $quality = null): string
-    {
+    public function toString(
+        ?string $format = null,
+        ?int $quality = null
+    ): string {
         return $this->driver->getString($format, $quality);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function output(?string $format = null, ?int $quality = null): void
-    {
+    public function output(
+        ?string $format = null,
+        ?int $quality = null
+    ): void {
         $format = $format ?: $this->getType();
         $data = $this->toString($format, $quality);
 
@@ -146,7 +220,14 @@ class Image implements ImageInterface
         bool $upscale = false
     ): self {
         $height = $height ?? (int) round($width / $this->getAspectRatio());
-        $this->driver->resize($width, $height, $preserveAspectRatio, $upscale);
+
+        $this->driver->resize(
+            $width,
+            $height,
+            $preserveAspectRatio,
+            $upscale
+        );
+
         return $this;
     }
 
@@ -167,8 +248,10 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function resizeToHeight(int $height, bool $upscale = false): self
-    {
+    public function resizeToHeight(
+        int $height,
+        bool $upscale = false
+    ): self {
         if (!$upscale && $height > $this->getHeight()) {
             return $this;
         }
@@ -181,8 +264,11 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function resizeToFit(int $maxWidth, int $maxHeight, bool $upscale = false): self
-    {
+    public function resizeToFit(
+        int $maxWidth,
+        int $maxHeight,
+        bool $upscale = false
+    ): self {
         $ratio = $this->getAspectRatio();
 
         $width = $maxWidth;
@@ -205,8 +291,11 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function resizeToFill(int $width, int $height, bool $upscale = false): self
-    {
+    public function resizeToFill(
+        int $width,
+        int $height,
+        bool $upscale = false
+    ): self {
         $this->driver->fit($width, $height, $upscale);
         return $this;
     }
@@ -214,8 +303,10 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function scale(float $ratio, bool $allowUpscale = true): self
-    {
+    public function scale(
+        float $ratio,
+        bool $allowUpscale = true
+    ): self {
         $width = (int) round($this->getWidth() * $ratio);
         $height = (int) round($this->getHeight() * $ratio);
         $this->driver->resize($width, $height, false, $allowUpscale);
@@ -225,8 +316,12 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function crop(int $x, int $y, int $width, int $height): self
-    {
+    public function crop(
+        int $x,
+        int $y,
+        int $width,
+        int $height
+    ): self {
         $this->driver->crop($x, $y, $width, $height);
         return $this;
     }
@@ -234,8 +329,11 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function fit(int $width, int $height, bool $upscale = false): self
-    {
+    public function fit(
+        int $width,
+        int $height,
+        bool $upscale = false
+    ): self {
         $this->driver->fit($width, $height, $upscale);
         return $this;
     }
@@ -243,8 +341,10 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function rotate(float $angle, string $backgroundColor = '#000000'): self
-    {
+    public function rotate(
+        float $angle,
+        string $backgroundColor = '#000000'
+    ): self {
         $this->driver->rotate($angle, $backgroundColor);
         return $this;
     }
@@ -322,9 +422,16 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function colorize(int $red, int $green, int $blue): self
-    {
-        $this->driver->colorize($red, $green, $blue);
+    public function colorize(
+        int $red,
+        int $green,
+        int $blue
+    ): self {
+        $this->driver->colorize(
+            $red,
+            $green,
+            $blue
+        );
         return $this;
     }
 
@@ -360,20 +467,25 @@ class Image implements ImageInterface
      */
     public function invert(): self
     {
-        if ($this->driverName === 'imagick') {
-            $this->getDriver()->getResource()->negateImage(false);
-        } else {
-            imagefilter($this->getDriver()->getResource(), IMG_FILTER_NEGATE);
-        }
+        $this->driver->invert();
         return $this;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function watermark($watermark, string $position = 'bottom-right', int $offsetX = 10, int $offsetY = 10): self
-    {
-        $this->driver->watermark($watermark, $position, $offsetX, $offsetY);
+    public function watermark(
+        $watermark,
+        string $position = 'bottom-right',
+        int $offsetX = 10,
+        int $offsetY = 10
+    ): self {
+        $this->driver->watermark(
+            $watermark,
+            $position,
+            $offsetX,
+            $offsetY
+        );
         return $this;
     }
 
@@ -396,6 +508,11 @@ class Image implements ImageInterface
 
     /**
      * Resolve driver name
+     *
+     * @param string $driver Driver name to resolve
+     * @return string Resolved driver name
+     * @throws DriverException When driver is not available
+     * @throws InvalidConfigException When driver is invalid
      */
     private function resolveDriver(string $driver): string
     {
@@ -426,6 +543,10 @@ class Image implements ImageInterface
 
     /**
      * Create driver instance
+     *
+     * @param string $driverName Driver name
+     * @return DriverInterface Driver instance
+     * @throws InvalidConfigException When driver is invalid
      */
     private function createDriver(string $driverName): DriverInterface
     {

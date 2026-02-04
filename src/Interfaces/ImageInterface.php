@@ -6,26 +6,74 @@ interface ImageInterface
 {
     /**
      * Constructor
-     * 
+     *
      * @param string $driver Driver name (auto|gd|imagick)
      */
     public function __construct(string $driver = 'auto');
 
     /**
      * Set upscale mode
-     * 
-     * @param bool $enabled
+     *
+     * @param bool $enabled Enable or disable upscale mode
+     * @return self
      */
     public function upscale(bool $enabled = true): self;
 
     /**
      * Check if upscale is enabled
+     *
+     * @return bool
      */
     public function isUpscale(): bool;
 
     /**
+     * Set force gifsicle mode
+     *
+     * @param bool $enabled Enable or disable force gifsicle mode
+     * @return self
+     */
+    public function useGifsicle(bool $enabled = true): self;
+
+    /**
+     * Check if gifsicle is forced
+     *
+     * @return bool
+     */
+    public function isForceGifsicle(): bool;
+
+    /**
+     * Check if gifsicle is available in the system
+     *
+     * @return bool
+     */
+    public function isGifsicleAvailable(): bool;
+
+    /**
+     * Set custom path for gifsicle
+     *
+     * @param string $path Path to gifsicle executable
+     * @return bool
+     */
+    public function setGifsiclePath(string $path): self;
+
+    /**
+     * Set a lossy value
+     *
+     * @param string $value Lossy value
+     * @return self
+     */
+    public function setGifsicleLossy(int $value): self;
+
+    /**
+     * Get a lossy value
+     *
+     * @return int
+     */
+    public function getGifsicleLossy(): int;
+
+    /**
      * Load image from file
-     * 
+     *
      * @param string $path Image file path
      * @return self
      */
@@ -33,7 +81,7 @@ interface ImageInterface
 
     /**
      * Load image from binary data
-     * 
+     *
      * @param string $data Binary image data
      * @return self
      */
@@ -41,7 +89,7 @@ interface ImageInterface
 
     /**
      * Save image to file
-     * 
+     *
      * @param string $path Save path
      * @param int|null $quality Image quality
      * @param string|null $format Output format
@@ -51,7 +99,7 @@ interface ImageInterface
 
     /**
      * Get image as binary string
-     * 
+     *
      * @param string|null $format Output format
      * @param int|null $quality Image quality
      * @return string Image binary data
@@ -60,50 +108,51 @@ interface ImageInterface
 
     /**
      * Output image to browser
-     * 
+     *
      * @param string|null $format Output format
      * @param int|null $quality Image quality
+     * @return void
      */
     public function output(?string $format = null, ?int $quality = null): void;
 
     /**
      * Get image width
-     * 
+     *
      * @return int Image width
      */
     public function getWidth(): int;
 
     /**
      * Get image height
-     * 
+     *
      * @return int Image height
      */
     public function getHeight(): int;
 
     /**
      * Get aspect ratio
-     * 
+     *
      * @return float Width/height ratio
      */
     public function getAspectRatio(): float;
 
     /**
      * Get image type
-     * 
+     *
      * @return string Image type
      */
     public function getType(): string;
 
     /**
      * Get image MIME type
-     * 
+     *
      * @return string MIME type
      */
     public function getMimeType(): string;
 
     /**
      * Check if animated
-     * 
+     *
      * @return bool True for animated GIF
      */
     public function isAnimated(): bool;
@@ -115,12 +164,13 @@ interface ImageInterface
      * @param int|null $height Target height (optional, calculated from aspect ratio if not provided)
      * @param bool $preserveAspectRatio Whether to preserve aspect ratio
      * @param bool $upscale Whether to allow upscaling (increasing image size)
+     * @return self
      */
     public function resize(int $width, ?int $height = null, bool $preserveAspectRatio = true, bool $upscale = false): self;
 
     /**
      * Resize to specific width
-     * 
+     *
      * @param int $width Target width
      * @param bool $upscale Allow upscaling
      * @return self
@@ -129,7 +179,7 @@ interface ImageInterface
 
     /**
      * Resize to specific height
-     * 
+     *
      * @param int $height Target height
      * @param bool $upscale Allow upscaling
      * @return self
@@ -138,7 +188,7 @@ interface ImageInterface
 
     /**
      * Resize to fit within dimensions
-     * 
+     *
      * @param int $maxWidth Maximum width
      * @param int $maxHeight Maximum height
      * @param bool $upscale Allow upscaling
@@ -148,7 +198,7 @@ interface ImageInterface
 
     /**
      * Resize to fill dimensions
-     * 
+     *
      * @param int $width Target width
      * @param int $height Target height
      * @param bool $upscale Allow upscaling
@@ -161,12 +211,13 @@ interface ImageInterface
      *
      * @param float $ratio Scale ratio
      * @param bool $upscale Whether to allow upscaling
+     * @return self
      */
     public function scale(float $ratio, bool $upscale = false): self;
 
     /**
      * Crop image
-     * 
+     *
      * @param int $x Start X coordinate
      * @param int $y Start Y coordinate
      * @param int $width Crop width
@@ -177,7 +228,7 @@ interface ImageInterface
 
     /**
      * Fit image to dimensions
-     * 
+     *
      * @param int $width Target width
      * @param int $height Target height
      * @param bool $upscale Allow upscaling
@@ -187,7 +238,7 @@ interface ImageInterface
 
     /**
      * Rotate image
-     * 
+     *
      * @param float $angle Rotation angle
      * @param string $backgroundColor Background color
      * @return self
@@ -196,7 +247,7 @@ interface ImageInterface
 
     /**
      * Flip image
-     * 
+     *
      * @param string $mode Flip direction
      * @return self
      */
@@ -204,21 +255,21 @@ interface ImageInterface
 
     /**
      * Flip horizontally
-     * 
+     *
      * @return self
      */
     public function flipHorizontal(): self;
 
     /**
      * Flip vertically
-     * 
+     *
      * @return self
      */
     public function flipVertical(): self;
 
     /**
      * Apply blur filter
-     * 
+     *
      * @param int $amount Blur intensity
      * @return self
      */
@@ -226,7 +277,7 @@ interface ImageInterface
 
     /**
      * Apply sharpen filter
-     * 
+     *
      * @param int $amount Sharpen intensity
      * @return self
      */
@@ -234,7 +285,7 @@ interface ImageInterface
 
     /**
      * Adjust brightness
-     * 
+     *
      * @param int $level Brightness level
      * @return self
      */
@@ -242,7 +293,7 @@ interface ImageInterface
 
     /**
      * Adjust contrast
-     * 
+     *
      * @param int $level Contrast level
      * @return self
      */
@@ -250,7 +301,7 @@ interface ImageInterface
 
     /**
      * Apply gamma correction
-     * 
+     *
      * @param float $correction Gamma correction
      * @return self
      */
@@ -258,7 +309,7 @@ interface ImageInterface
 
     /**
      * Colorize image
-     * 
+     *
      * @param int $red Red component
      * @param int $green Green component
      * @param int $blue Blue component
@@ -268,21 +319,21 @@ interface ImageInterface
 
     /**
      * Convert to greyscale
-     * 
+     *
      * @return self
      */
     public function greyscale(): self;
 
     /**
      * Apply sepia filter
-     * 
+     *
      * @return self
      */
     public function sepia(): self;
 
     /**
      * Pixelate image
-     * 
+     *
      * @param int $size Pixel size
      * @return self
      */
@@ -290,14 +341,14 @@ interface ImageInterface
 
     /**
      * Invert colors
-     * 
+     *
      * @return self
      */
     public function invert(): self;
 
     /**
      * Add watermark
-     * 
+     *
      * @param mixed $watermark Image path or resource
      * @param string $position Watermark position
      * @param int $offsetX Horizontal offset
@@ -308,14 +359,14 @@ interface ImageInterface
 
     /**
      * Remove EXIF data
-     * 
+     *
      * @return self
      */
     public function stripExif(): self;
 
     /**
      * Get driver instance
-     * 
+     *
      * @return DriverInterface Driver instance
      */
     public function getDriver(): DriverInterface;
