@@ -16,11 +16,6 @@ class ImagickDriver extends Driver
     private $image;
 
     /**
-     * @var string Temporary file path for original GIF
-     */
-    private $tempOriginalPath;
-
-    /**
      * Constructor
      * 
      * @throws DriverException When Imagick extension is not loaded
@@ -45,17 +40,42 @@ class ImagickDriver extends Driver
 
         try {
             $this->image = new Imagick();
-            $this->mimeType = $this->getMimeTypeFromFile($path);
-            $this->type = $this->getTypeFromMimeType($this->mimeType);
-            $this->image->setBackgroundColor(new ImagickPixel('white'));
+            $this->setPath($path);
+
+            $this->setMimeType(
+                $this->getMimeTypeFromFile($path)
+            );
+
+            $this->setExtension(
+                $this->getTypeFromMimeType(
+                    $this->getMimeType()
+                )
+            );
+
+            $this->image->setBackgroundColor(
+                new ImagickPixel('white')
+            );
+
             $this->image->readImage($path);
             $this->fixBlackImageIssue();
-            $this->isAnimated = $this->image->getNumberImages() > 1;
-            $this->width = $this->image->getImageWidth();
-            $this->height = $this->image->getImageHeight();
-            $this->image->setImageBackgroundColor(new ImagickPixel('transparent'));
 
-            if (in_array($this->type, ['jpeg', 'jpg'])) {
+            $this->setIsAnimated(
+                $this->image->getNumberImages() > 1
+            );
+
+            $this->setWidth(
+                $this->image->getImageWidth()
+            );
+
+            $this->setHeight(
+                $this->image->getImageHeight()
+            );
+
+            $this->image->setImageBackgroundColor(
+                new ImagickPixel('transparent')
+            );
+
+            if (in_array($this->getExtension(), ['jpeg', 'jpg'])) {
                 $this->image->setImageColorspace(Imagick::COLORSPACE_SRGB);
             }
         } catch (\Exception $e) {
@@ -70,13 +90,31 @@ class ImagickDriver extends Driver
     {
         try {
             $this->image = new Imagick();
-            $this->mimeType = $this->getMimeTypeFromString($data);
-            $this->type = $this->getTypeFromMimeType($this->mimeType);
+
+            $this->setMimeType(
+                $this->getMimeTypeFromString($data)
+            );
+
+            $this->setExtension(
+                $this->getTypeFromMimeType(
+                    $this->getMimeType()
+                )
+            );
+
             $this->image->readImageBlob($data);
             $this->fixBlackImageIssue();
-            $this->isAnimated = $this->image->getNumberImages() > 1;
-            $this->width = $this->image->getImageWidth();
-            $this->height = $this->image->getImageHeight();
+
+            $this->setIsAnimated(
+                $this->image->getNumberImages() > 1
+            );
+
+            $this->setWidth(
+                $this->image->getImageWidth()
+            );
+
+            $this->setHeight(
+                $this->image->getImageHeight()
+            );
         } catch (\Exception $e) {
             throw ImageException::invalidImage('string data');
         }
@@ -90,14 +128,14 @@ class ImagickDriver extends Driver
         ?int $quality = null,
         ?string $format = null
     ): bool {
-        $format = $format ?: $this->type;
+        $format = $format ?: $this->getExtension();
         $format = strtolower($format);
 
         // Special handling for GIF with gifsicle
         if (
             $format === 'gif' &&
-            $this->isGifsicle &&
-            $this->gifsicle !== null
+            $this->isEnabledGifsicle() &&
+            $this->getGifsicle() !== null
         ) {
             return $this->saveGifOptimally($path, $quality);
         }
@@ -108,7 +146,7 @@ class ImagickDriver extends Driver
         try {
             $image = $this->prepareImageForSave($format, $quality);
 
-            if ($this->isAnimated && $format === 'gif') {
+            if ($this->isAnimated() && $format === 'gif') {
                 return $this->saveGifWithColorReduction($path, $quality);
             }
 
@@ -140,19 +178,30 @@ class ImagickDriver extends Driver
      * @param int $quality Quality level (0-100)
      * @return bool Success status
      */
-    private function saveGifWithColorReduction(string $path, int $quality): bool
-    {
+    private function saveGifWithColorReduction(
+        string $path,
+        int $quality
+    ): bool {
         $image = clone $this->image;
 
         try {
             $this->removeAllMetadataReal($image);
 
-            if (!$this->isAnimated) {
+            if (!$this->isAnimated()) {
                 $currentColors = $image->getImageColors();
-                $colors = $this->calculateRealColors($quality, $currentColors);
+                $colors = $this->calculateRealColors(
+                    $quality,
+                    $currentColors
+                );
 
                 if ($currentColors > $colors) {
-                    $image->quantizeImage($colors, Imagick::COLORSPACE_SRGB, 0, false, false);
+                    $image->quantizeImage(
+                        $colors,
+                        Imagick::COLORSPACE_SRGB,
+                        0,
+                        false,
+                        false
+                    );
                 }
             } else {
                 // For animated GIFs - common palette
@@ -167,24 +216,32 @@ class ImagickDriver extends Driver
                 $currentColors = $image->getImageColors();
                 $colors = $this->calculateRealColors($quality, $currentColors);
                 $colors = $colors >  $currentColors ? $currentColors : $colors;
-                $allFrames->quantizeImage($colors, Imagick::COLORSPACE_SRGB, 0, false, false);
+                $allFrames->quantizeImage(
+                    $colors,
+                    Imagick::COLORSPACE_SRGB,
+                    0,
+                    false,
+                    false
+                );
 
                 // Apply common palette
                 foreach ($image as $frame) {
-                    $frame->remapImage($allFrames, Imagick::DITHERMETHOD_NO);
+                    $frame->remapImage(
+                        $allFrames,
+                        Imagick::DITHERMETHOD_NO
+                    );
                     $frame->setCompressionQuality($quality);
                 }
 
                 $image->deconstructImages();
                 $allFrames->destroy();
-
                 $image->setImageCompression(Imagick::COMPRESSION_LZW);
                 $image->optimizeImageLayers();
                 $this->removeAllMetadataReal($image);
             }
 
             // 4. Save
-            if ($this->isAnimated) {
+            if ($this->isAnimated()) {
                 return $image->writeImages($path, true);
             }
 
@@ -235,7 +292,7 @@ class ImagickDriver extends Driver
     {
         $image = clone $this->image;
 
-        if ($this->isAnimated) {
+        if ($this->isAnimated()) {
             return $image->writeImages($path, true);
         }
 
@@ -249,12 +306,16 @@ class ImagickDriver extends Driver
         ?string $format = null,
         ?int $quality = null
     ): string {
-        $format = $format ?: $this->type;
+        $format = $format ?: $this->getExtension();
         $quality = $this->normalizeQuality($quality, $format);
 
         try {
             // Special handling for GIF with gifsicle
-            if ($format === 'gif' && $this->isGifsicle && $this->gifsicle !== null) {
+            if (
+                $format === 'gif' &&
+                $this->isEnabledGifsicle() &&
+                $this->getGifsicle() !== null
+            ) {
                 $tempFile = $this->createTempFilePath();
                 $this->saveGifOptimally($tempFile, $quality);
 
@@ -263,7 +324,7 @@ class ImagickDriver extends Driver
 
             $image = $this->prepareImageForSave($format, $quality);
 
-            if ($this->isAnimated && $format === 'gif') {
+            if ($this->isAnimated() && $format === 'gif') {
                 $image = $image->deconstructImages();
             }
 
@@ -280,9 +341,19 @@ class ImagickDriver extends Driver
      */
     private function withCoalesced(callable $operation): void
     {
+        if (!$this->image) {
+            if (empty($this->getPath())) {
+                throw ImageException::invalidInput();
+            } else {
+                throw ImageException::invalidImage(
+                    $this->getPath()
+                );
+            }
+        }
+
         $wasCoalesced = false;
 
-        if ($this->isAnimated) {
+        if ($this->isAnimated()) {
             $this->image = $this->image->coalesceImages();
             $wasCoalesced = true;
         }
@@ -311,66 +382,51 @@ class ImagickDriver extends Driver
         bool $preserveAspectRatio = true,
         bool $upscale = false
     ): void {
-        $this->withCoalesced(function () use (
-            $width,
-            $height,
-            $preserveAspectRatio,
-            $upscale
-        ) {
-            try {
-                if (!$upscale && !$this->isUpscale()) {
-                    $width = min($width, $this->width);
-                    $height = min($height, $this->height);
-                }
+        $this->image = $this->image->coalesceImages();
 
-                if ($this->isAnimated) {
-                    foreach ($this->image as $frame) {
-                        if ($preserveAspectRatio) {
-                            $frame->resizeImage(
-                                $width,
-                                $height,
-                                Imagick::FILTER_LANCZOS,
-                                1,
-                                true
-                            );
-                        } else {
-                            $frame->resizeImage(
-                                $width,
-                                $height,
-                                Imagick::FILTER_LANCZOS,
-                                1
-                            );
-                        }
-                    }
-                } else {
-                    if ($preserveAspectRatio) {
-                        $this->image->resizeImage(
-                            $width,
-                            $height,
-                            Imagick::FILTER_LANCZOS,
-                            1,
-                            true
-                        );
-                    } else {
-                        $this->image->resizeImage(
-                            $width,
-                            $height,
-                            Imagick::FILTER_LANCZOS,
-                            1
-                        );
-                    }
-                }
+        try {
+            if (!$upscale) {
+                $origWidth = $this->image->getImageWidth();
+                $origHeight = $this->image->getImageHeight();
 
-                $this->width = $this->image->getImageWidth();
-                $this->height = $this->image->getImageHeight();
-            } catch (\Exception $e) {
-                throw ImageException::operationFailed('resize');
+                if ($width > $origWidth || $height > $origHeight) {
+                    $width = min($width, $origWidth);
+                    $height = min($height, $origHeight);
+                }
             }
-        });
+
+            do {
+                $this->image->resizeImage(
+                    $width,
+                    $height,
+                    Imagick::FILTER_LANCZOS,
+                    1,
+                    $preserveAspectRatio
+                );
+
+                $currentW = $this->image->getImageWidth();
+                $currentH = $this->image->getImageHeight();
+
+                $this->image->setImagePage($currentW, $currentH, 0, 0);
+            } while ($this->image->nextImage());
+
+            $this->image = $this->image->deconstructImages();
+
+            $this->setWidth(
+                $this->image->getImageWidth()
+            );
+
+            $this->setHeight(
+                $this->image->getImageHeight()
+            );
+        } catch (ImageException $e) {
+            throw ImageException::operationFailed('resize');
+        }
     }
 
+
     /**
-     * Fit image to dimensions
+     * Fit image to dimensions (обрезает до указанных размеров)
      * 
      * @param int $width Target width
      * @param int $height Target height
@@ -382,26 +438,27 @@ class ImagickDriver extends Driver
         bool $upscale = false
     ): void {
         $this->withCoalesced(function () use ($width, $height, $upscale) {
-            $ratio = $this->width / $this->height;
-            $targetRatio = $width / $height;
+            $currentWidth = $this->image->getImageWidth();
+            $currentHeight = $this->image->getImageHeight();
+            $scale = max($width / $currentWidth, $height / $currentHeight);
 
-            if ($ratio > $targetRatio) {
-                $newHeight = $height;
-                $newWidth = (int) round($height * $ratio);
-            } else {
-                $newWidth = $width;
-                $newHeight = (int) round($width / $ratio);
+            if (!$upscale && $scale > 1.0) {
+                $scale = 1.0;
             }
 
-            if (!$upscale && !$this->isUpscale()) {
-                $newWidth = min($newWidth, $this->width);
-                $newHeight = min($newHeight, $this->height);
-            }
+            $newWidth = (int) round($currentWidth * $scale);
+            $newHeight = (int) round($currentHeight * $scale);
+            $newWidth = max(1, $newWidth);
+            $newHeight = max(1, $newHeight);
 
-            $this->resize($newWidth, $newHeight, false, $upscale);
-            $x = (int) max(0, ($newWidth - $width) / 2);
-            $y = (int) max(0, ($newHeight - $height) / 2);
-            $this->crop($x, $y, $width, $height);
+            $this->resize($newWidth, $newHeight, true, true);
+
+            $x = max(0, (int) round(($newWidth - $width) / 2));
+            $y = max(0, (int) round(($newHeight - $height) / 2));
+            $cropWidth = min($width, $newWidth);
+            $cropHeight = min($height, $newHeight);
+
+            $this->crop($x, $y, $cropWidth, $cropHeight);
         });
     }
 
@@ -413,37 +470,29 @@ class ImagickDriver extends Driver
         int $height,
         string $position = 'center'
     ): void {
-        $this->withCoalesced(function () use (
-            $width,
-            $height,
-            $position
-        ) {
-            try {
-                if ($this->isAnimated) {
-                    foreach ($this->image as $frame) {
-                        $this->resizeFrameCanvas(
-                            $frame,
-                            $width,
-                            $height,
-                            $position
-                        );
-                    }
-                } else {
-                    $this->resizeFrameCanvas(
-                        $this->image,
-                        $width,
-                        $height,
-                        $position
-                    );
-                }
+        $this->image = $this->image->coalesceImages();
 
-                $this->width = $width;
-                $this->height = $height;
-            } catch (\Exception $e) {
-                throw ImageException::operationFailed('resize canvas');
-            }
-        });
+        try {
+            $this->image->setFirstIterator();
+            do {
+                $this->resizeFrameCanvas(
+                    $this->image,
+                    $width,
+                    $height,
+                    $position
+                );
+
+                $this->image->setImagePage($width, $height, 0, 0);
+            } while ($this->image->nextImage());
+
+            $this->image = $this->image->optimizeImageLayers();
+            $this->setWidth($width);
+            $this->setHeight($height);
+        } catch (\Exception $e) {
+            throw ImageException::operationFailed('resize canvas');
+        }
     }
+
 
     /**
      * {@inheritdoc}
@@ -461,7 +510,7 @@ class ImagickDriver extends Driver
             $height
         ) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->cropImage($width, $height, $x, $y);
                         $frame->setImagePage(0, 0, 0, 0);
@@ -471,8 +520,8 @@ class ImagickDriver extends Driver
                     $this->image->setImagePage(0, 0, 0, 0);
                 }
 
-                $this->width = $width;
-                $this->height = $height;
+                $this->setWidth($width);
+                $this->setHeight($height);
             } catch (\Exception $e) {
                 throw ImageException::operationFailed('crop');
             }
@@ -482,28 +531,51 @@ class ImagickDriver extends Driver
     /**
      * {@inheritdoc}
      */
+    /**
+     * {@inheritdoc}
+     */
     public function rotate(
         float $angle,
-        string $backgroundColor = '#000000'
+        string $backgroundColor = 'transparent'
     ): void {
+
         $this->withCoalesced(function () use ($angle, $backgroundColor) {
             try {
-                if ($this->isAnimated) {
-                    foreach ($this->image as $frame) {
-                        $frame->rotateImage(new ImagickPixel($backgroundColor), $angle);
-                    }
+                $correctedAngle = -$angle;
+
+                if (strtolower($backgroundColor) === 'transparent') {
+                    $background = 'none';
+                    $pixel = new ImagickPixel($background);
                 } else {
-                    $this->image->rotateImage(new ImagickPixel($backgroundColor), $angle);
+                    $pixel = new ImagickPixel($backgroundColor);
                 }
 
-                $this->width = $this->image->getImageWidth();
-                $this->height = $this->image->getImageHeight();
+                if ($this->isAnimated()) {
+                    foreach ($this->image as $frame) {
+                        $frame->rotateImage($pixel, $correctedAngle);
+                        $frame->setImagePage(
+                            $frame->getImageWidth(),
+                            $frame->getImageHeight(),
+                            0,
+                            0
+                        );
+                    }
+                } else {
+                    $this->image->rotateImage($pixel, $correctedAngle);
+                }
+
+                $this->setWidth(
+                    $this->image->getImageWidth()
+                );
+
+                $this->setHeight(
+                    $this->image->getImageHeight()
+                );
             } catch (\Exception $e) {
-                throw ImageException::operationFailed('rotate');
+                throw ImageException::operationFailed('rotate', $e);
             }
         });
     }
-
     /**
      * {@inheritdoc}
      */
@@ -511,7 +583,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () use ($mode) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         if ($mode === 'horizontal') {
                             $frame->flopImage();
@@ -537,19 +609,72 @@ class ImagickDriver extends Driver
      */
     public function blur(int $amount = 1): void
     {
-        $this->withCoalesced(function () use ($amount) {
-            try {
-                if ($this->isAnimated) {
-                    foreach ($this->image as $frame) {
-                        $frame->gaussianBlurImage(0.8 * $amount, 0.6 * $amount);
-                    }
-                } else {
-                    $this->image->gaussianBlurImage(0.8 * $amount, 0.6 * $amount);
-                }
-            } catch (\Exception $e) {
-                throw ImageException::operationFailed('blur');
+        if ($this->isAnimated()) {
+            $this->applyBlurToAnimatedGif($amount);
+        } else {
+            $this->applyBlurToStaticImage($amount);
+        }
+    }
+
+    /**
+     * Apply blur to static image
+     * 
+     * @param int $amount
+     */
+    private function applyBlurToStaticImage(int $amount): void
+    {
+        try {
+            $radius = min(10, max(1, $amount));
+            $sigma = min(5, max(0.5, $amount * 0.7));
+
+            $this->image->blurImage($radius, $sigma);
+        } catch (\Exception $e) {
+            throw ImageException::operationFailed('blur');
+        }
+    }
+
+    /**
+     * Apply blur to animated GIF
+     * 
+     * @param int $amount
+     */
+    private function applyBlurToAnimatedGif(int $amount): void
+    {
+        try {
+            $image = clone $this->image;
+            $image = $image->coalesceImages();
+
+            foreach ($image as $frame) {
+                $radius = min(5, max(1, $amount));
+                $sigma = min(3, max(0.5, $amount * 0.5));
+
+                // Применяем размытие к текущему кадру
+                $frame->blurImage($radius, $sigma);
+
+                // Обновляем границы кадра
+                $frame->setImagePage(
+                    $frame->getImageWidth(),
+                    $frame->getImageHeight(),
+                    0,
+                    0
+                );
             }
-        });
+
+            $image = $image->deconstructImages();
+
+            $this->image->destroy();
+            $this->image = $image;
+
+            $this->setWidth(
+                $this->image->getImageWidth()
+            );
+
+            $this->setHeight(
+                $this->image->getImageHeight()
+            );
+        } catch (\Exception $e) {
+            throw ImageException::operationFailed('blur');
+        }
     }
 
     /**
@@ -559,7 +684,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () use ($amount) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->sharpenImage(0, $amount);
                     }
@@ -579,7 +704,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () use ($level) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->modulateImage(100 + $level, 100, 100);
                     }
@@ -599,7 +724,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () use ($level) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->sigmoidalContrastImage(true, $level / 10, 0);
                     }
@@ -619,7 +744,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () use ($correction) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->gammaImage($correction);
                     }
@@ -639,7 +764,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->negateImage(false);
                     }
@@ -665,7 +790,7 @@ class ImagickDriver extends Driver
                 $gValue = ($green / 255.0) * $maxQuantum;
                 $bValue = ($blue / 255.0) * $maxQuantum;
 
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->evaluateImage(
                             \Imagick::EVALUATE_ADD,
@@ -713,7 +838,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->setImageType(Imagick::IMGTYPE_GRAYSCALE);
                     }
@@ -733,7 +858,7 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->sepiaToneImage(80);
                     }
@@ -753,25 +878,25 @@ class ImagickDriver extends Driver
     {
         $this->withCoalesced(function () use ($size) {
             try {
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->scaleImage(
-                            max(1, $this->width / $size),
-                            max(1, $this->height / $size)
+                            max(1, $this->getWidth() / $size),
+                            max(1, $this->getHeight() / $size)
                         );
                         $frame->scaleImage(
-                            $this->width,
-                            $this->height
+                            $this->getWidth(),
+                            $this->getHeight()
                         );
                     }
                 } else {
                     $this->image->scaleImage(
-                        max(1, $this->width / $size),
-                        max(1, $this->height / $size)
+                        max(1, $this->getWidth() / $size),
+                        max(1, $this->getHeight() / $size)
                     );
                     $this->image->scaleImage(
-                        $this->width,
-                        $this->height
+                        $this->getWidth(),
+                        $this->getHeight()
                     );
                 }
             } catch (\Exception $e) {
@@ -807,15 +932,15 @@ class ImagickDriver extends Driver
 
                 list($x, $y) = $this->calculatePosition(
                     $position,
-                    $this->width,
-                    $this->height,
+                    $this->getWidth(),
+                    $this->getHeight(),
                     $wmWidth,
                     $wmHeight,
                     $offsetX,
                     $offsetY
                 );
 
-                if ($this->isAnimated) {
+                if ($this->isAnimated()) {
                     foreach ($this->image as $frame) {
                         $frame->compositeImage(
                             $watermarkImage,
@@ -891,7 +1016,7 @@ class ImagickDriver extends Driver
             case 'bmp':
                 return $this->processBmp($image);
             default:
-                if ($format !== $this->type) {
+                if ($format !== $this->getExtension()) {
                     $image->setImageFormat($format);
                 }
 
@@ -919,31 +1044,29 @@ class ImagickDriver extends Driver
         Imagick $image,
         int $quality
     ): Imagick {
-        $webpImage = new Imagick();
-        $image->setImageFormat('png');
-        $pngBlob = $image->getImageBlob();
-        $webpImage->readImageBlob($pngBlob);
-        $webpImage->setImageFormat('WEBP');
-        $webpImage->setImageCompressionQuality($quality);
-        $webpImage->setImageCompression(Imagick::COMPRESSION_JPEG);
-        $webpImage->setOption('webp:lossless', 'false');
+        $image->setImageFormat('WEBP');
+        $image->setOption('webp:method', $this->getWebpMethod($quality));
+        $image->setOption('webp:lossless', 'false');
+        $image = $image->mergeImageLayers(Imagick::LAYERMETHOD_OPTIMIZEPLUS);
+        $image->setImageCompressionQuality($quality);
 
+        return $image;
+    }
+
+    /**
+     * Determine WEBP encoding method based on quality level
+     * 
+     * @param int $quality Image quality level (0-100)
+     * @return int
+     */
+    private function getWebpMethod(int $quality): int
+    {
         if ($quality <= 30) {
-            $webpImage->setOption('webp:method', '6');
+            return 6;
         } elseif ($quality <= 70) {
-            $webpImage->setOption('webp:method', '5');
-        } else {
-            $webpImage->setOption('webp:method', '4');
+            return 5;
         }
-
-        $webpBlob = $webpImage->getImageBlob();
-        $finalImage = new Imagick();
-        $finalImage->readImageBlob($webpBlob);
-        $finalImage->setImageFormat('WEBP');
-        $finalImage->setImageCompressionQuality($quality);
-        $webpImage->destroy();
-
-        return $finalImage;
+        return 4;
     }
 
     /**
@@ -983,7 +1106,13 @@ class ImagickDriver extends Driver
         $bmpImage->setImageDepth(8);
 
         if ($bmpImage->getImageType() === Imagick::IMGTYPE_TRUECOLOR) {
-            $bmpImage->quantizeImage(256, Imagick::COLORSPACE_SRGB, 0, false, false);
+            $bmpImage->quantizeImage(
+                256,
+                Imagick::COLORSPACE_SRGB,
+                0,
+                false,
+                false
+            );
         }
 
         $bmpImage->stripImage();
@@ -1025,8 +1154,22 @@ class ImagickDriver extends Driver
         int $height,
         string $position
     ): void {
-        list($x, $y) = $this->calculatePosition($position, $width, $height);
+        $frameWidth = $frame->getImageWidth();
+        $frameHeight = $frame->getImageHeight();
 
-        $frame->extentImage($width, $height, -$x, -$y);
+        list($x, $y) = $this->calculatePosition(
+            $position,
+            $width,
+            $height,
+            $frameWidth,
+            $frameHeight
+        );
+
+        $frame->extentImage(
+            $width,
+            $height,
+            -(int)$x,
+            -(int)$y
+        );
     }
 }

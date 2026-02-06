@@ -8,14 +8,50 @@ use Cleup\Pixie\Optimizers\Gifsicle;
 
 abstract class Driver implements DriverInterface
 {
-    protected $width;
-    protected $height;
-    protected $type;
-    protected $mimeType;
-    protected $isAnimated = false;
-    protected bool $upscale = false;
-    protected bool $isGifsicle = false;
-    protected ?Gifsicle $gifsicle = null;
+    /**
+     * @var int Image width in pixels
+     */
+    private $width;
+
+    /**
+     * @var int Image height in pixels
+     */
+    private $height;
+
+    /**
+     * @var string MIME type of the image (e.g., 'image/jpeg', 'image/png')
+     */
+    private $mimeType;
+
+    /**
+     * @var bool Whether the image is animated
+     */
+    private $isAnimated = false;
+
+    /**
+     * @var bool Allow upscaling of images when resizing
+     */
+    private bool $upscale = false;
+
+    /**
+     * @var bool Whether Gifsicle is available for GIF optimization
+     */
+    private bool $isGifsicle = false;
+
+    /**
+     * @var Gifsicle|null Gifsicle instance for GIF manipulation
+     */
+    private ?Gifsicle $gifsicle = null;
+
+    /**
+     * @var string File extension (e.g., 'jpg', 'png', 'gif')
+     */
+    private string $extension = '';
+
+    /**
+     * @var string File path
+     */
+    private string $path = '';
 
     public function __construct()
     {
@@ -85,7 +121,7 @@ abstract class Driver implements DriverInterface
     /**
      * {@inheritdoc}
      */
-    public function isGifsicleAvailable(): bool
+    public function isAvailableGifsicle(): bool
     {
         return $this->gifsicle !== null &&
             $this->gifsicle->isInstalled();
@@ -220,7 +256,19 @@ abstract class Driver implements DriverInterface
      */
     public function getWidth(): int
     {
-        return $this->width;
+        return $this->width ?? 0;
+    }
+
+    /**
+     * Sets the width of the image.
+     *
+     * @param int $width The desired width in pixels
+     * @return self
+     */
+    protected function setWidth(int $width): self
+    {
+        $this->width = $width;
+        return $this;
     }
 
     /**
@@ -228,15 +276,19 @@ abstract class Driver implements DriverInterface
      */
     public function getHeight(): int
     {
-        return $this->height;
+        return $this->height ?? 0;
     }
 
     /**
-     * {@inheritdoc}
+     * Sets the height of the image.
+     *
+     * @param int $height The desired height in pixels
+     * @return self 
      */
-    public function getType(): string
+    protected function setHeight(int $height): self
     {
-        return $this->type;
+        $this->height = $height;
+        return $this;
     }
 
     /**
@@ -244,7 +296,23 @@ abstract class Driver implements DriverInterface
      */
     public function getMimeType(): string
     {
-        return $this->mimeType ?: $this->getMimeTypeFromType($this->type);
+        return $this->mimeType ?:
+            $this->getMimeTypeFromType(
+                $this->getExtension()
+            );
+    }
+
+    /**
+     * Set image MIME type
+     * 
+     * @param string $mimeType MIME type
+     * @return self
+     */
+    protected function setMimeType(string $mimeType): self
+    {
+        $this->mimeType = $mimeType;
+
+        return $this;
     }
 
     /**
@@ -253,6 +321,61 @@ abstract class Driver implements DriverInterface
     public function isAnimated(): bool
     {
         return $this->isAnimated;
+    }
+
+    /**
+     * Set animated status
+     * 
+     * @param bool $isAnimated
+     * @return self
+     */
+    public function setIsAnimated(bool $isAnimated = true): self
+    {
+        $this->isAnimated = $isAnimated;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getPath(): string
+    {
+        return $this->path;
+    }
+
+    /**
+     * Set image path
+     * 
+     * @param string $mimeType Path
+     * @return self
+     */
+    protected function setPath(string $path): self
+    {
+        $this->path = $path;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getExtension(): string
+    {
+        return $this->extension;
+    }
+
+    /**
+     * Set prepared image extension
+     * 
+     * @param string $mimeType Path
+     * @return self
+     */
+    protected function setExtension(string $extension): self
+    {
+        $this->extension = $extension;
+
+        return $this;
     }
 
     /**
@@ -280,21 +403,45 @@ abstract class Driver implements DriverInterface
             case 'top-left':
                 return [$offsetX, $offsetY];
             case 'top':
-                return [($canvasWidth - $objectWidth) / 2, $offsetY];
+                return [
+                    ($canvasWidth - $objectWidth) / 2,
+                    $offsetY
+                ];
             case 'top-right':
-                return [$canvasWidth - $objectWidth - $offsetX, $offsetY];
+                return [
+                    $canvasWidth - $objectWidth - $offsetX,
+                    $offsetY
+                ];
             case 'left':
-                return [$offsetX, ($canvasHeight - $objectHeight) / 2];
+                return [
+                    $offsetX,
+                    ($canvasHeight - $objectHeight) / 2
+                ];
             case 'center':
-                return [($canvasWidth - $objectWidth) / 2, ($canvasHeight - $objectHeight) / 2];
+                return [
+                    ($canvasWidth - $objectWidth) / 2,
+                    ($canvasHeight - $objectHeight) / 2
+                ];
             case 'right':
-                return [$canvasWidth - $objectWidth - $offsetX, ($canvasHeight - $objectHeight) / 2];
+                return [
+                    $canvasWidth - $objectWidth - $offsetX,
+                    ($canvasHeight - $objectHeight) / 2
+                ];
             case 'bottom-left':
-                return [$offsetX, $canvasHeight - $objectHeight - $offsetY];
+                return [
+                    $offsetX,
+                    $canvasHeight - $objectHeight - $offsetY
+                ];
             case 'bottom':
-                return [($canvasWidth - $objectWidth) / 2, $canvasHeight - $objectHeight - $offsetY];
+                return [
+                    ($canvasWidth - $objectWidth) / 2,
+                    $canvasHeight - $objectHeight - $offsetY
+                ];
             case 'bottom-right':
-                return [$canvasWidth - $objectWidth - $offsetX, $canvasHeight - $objectHeight - $offsetY];
+                return [
+                    $canvasWidth - $objectWidth - $offsetX,
+                    $canvasHeight - $objectHeight - $offsetY
+                ];
             default:
                 return [0, 0];
         }
@@ -361,7 +508,10 @@ abstract class Driver implements DriverInterface
             'image/x-ms-bmp' => 'bmp',
         ];
 
-        return $mimeToType[$mimeType] ?? throw ImageException::unsupportedFormat($mimeType);
+        if (empty($mimeToType[$mimeType]))
+            throw ImageException::unsupportedFormat($mimeType);
+
+        return $mimeToType[$mimeType];
     }
 
     /**
@@ -412,8 +562,10 @@ abstract class Driver implements DriverInterface
      * @param string $format Image format
      * @return int
      */
-    protected function normalizeQuality(?int $quality, string $format): int
-    {
+    protected function normalizeQuality(
+        ?int $quality,
+        string $format
+    ): int {
         if ($quality === null) {
             return match ($format) {
                 'png' => 90,
@@ -436,7 +588,12 @@ abstract class Driver implements DriverInterface
         $hex = ltrim($hex, '#');
 
         if (strlen($hex) === 3) {
-            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+            $hex = $hex[0] .
+                $hex[0] .
+                $hex[1] .
+                $hex[1] .
+                $hex[2] .
+                $hex[2];
         }
 
         return [
@@ -449,8 +606,10 @@ abstract class Driver implements DriverInterface
     /**
      * {@inheritdoc}
      */
-    public function calculateRealColors(?int $quality = 95, int $max = 256): int
-    {
+    public function calculateRealColors(
+        ?int $quality = 95,
+        int $max = 256
+    ): int {
         return (int)($max * ($quality ?? 95)) / 100;
     }
 

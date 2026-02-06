@@ -35,18 +35,11 @@ interface ImageInterface
     public function useGifsicle(bool $enabled = true): self;
 
     /**
-     * Check if gifsicle is forced
-     *
-     * @return bool
-     */
-    public function isForceGifsicle(): bool;
-
-    /**
      * Check if gifsicle is available in the system
      *
      * @return bool
      */
-    public function isGifsicleAvailable(): bool;
+    public function isAvailableGifsicle(): bool;
 
     /**
      * Set custom path for gifsicle
@@ -137,11 +130,11 @@ interface ImageInterface
     public function getAspectRatio(): float;
 
     /**
-     * Get image type
+     * Get a prepared image extension
      *
-     * @return string Image type
+     * @return string
      */
-    public function getType(): string;
+    public function getExtension(): string;
 
     /**
      * Get image MIME type
@@ -167,6 +160,16 @@ interface ImageInterface
      * @return self
      */
     public function resize(int $width, ?int $height = null, bool $preserveAspectRatio = true, bool $upscale = false): self;
+
+    /**
+     * Resize canvas
+     * 
+     * @param int $width Canvas width
+     * @param int|null $height Canvas height (null = use width)
+     * @param string $position Where to place image: 'center', 'top-left', 'bottom-right', etc.
+     * @return self
+     */
+    public function resizeCanvas(int $width, ?int $height = null, string $position = 'center'): self;
 
     /**
      * Resize to specific width

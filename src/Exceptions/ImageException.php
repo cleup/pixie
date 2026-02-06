@@ -4,6 +4,11 @@ namespace Cleup\Pixie\Exceptions;
 
 class ImageException extends \Exception
 {
+    public static function invalidInput(): self
+    {
+        return new self("Image path must be provided and cannot be empty");
+    }
+
     public static function fileNotFound(string $path): self
     {
         return new self("Image file not found: {$path}");

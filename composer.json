@@ -1,38 +1,43 @@
 {
-  "name": "cleup/pixie",
-  "version": "1.0.5",
-  "description": "An excellent library for working with images in PHP.",
-  "keywords": [
-    "pixie",
-    "crop",
-    "risize",
-    "image",
-    "php",
-    "scale"
-  ],
-  "type": "library",
-  "license": "MIT",
-  "homepage": "https://github.com/cleup/pixie",
-  "authors": [
-    {
-      "name": "Eduard Y",
-      "email": "dev@priveted.com"
+    "name": "cleup/pixie",
+    "version": "1.0.5",
+    "description": "An excellent library for working with images in PHP.",
+    "keywords": [
+        "pixie",
+        "crop",
+        "risize",
+        "image",
+        "php",
+        "scale"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/cleup/pixie",
+    "authors": [
+        {
+            "name": "Eduard Y",
+            "email": "dev@priveted.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1"
+    },
+    "suggest": {
+        "ext-gd": "For working with the GD extension",
+        "ext-imagick": "For working with the Imagick extension"
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test:quick": "vendor/bin/phpunit --exclude-group slow"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cleup\\Pixie\\": "src/",
+            "Cleup\\Pixie\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "jetbrains/phpstorm-stubs": "^2025.3",
+        "phpunit/phpunit": "^10.5"
     }
-  ],
-  "require": {
-    "php": ">=8.1"
-  },
-  "suggest": {
-    "ext-gd": "For working with the GD extension",
-    "ext-imagick": "For working with the Imagick extension"
-  },
-  "autoload": {
-    "psr-4": {
-      "Cleup\\Pixie\\": "src/"
-    }
-
-  },
-  "require-dev": {
-    "jetbrains/phpstorm-stubs": "^2025.3"
-  }
 }

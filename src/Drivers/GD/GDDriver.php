@@ -11,17 +11,12 @@ class GDDriver extends Driver
     /** 
      * @var ?GdImage Main GD image resource
      */
-    private ?GdImage $image;
+    private ?GdImage $image = null;
 
     /**
      * @var array Individual frames for animated GIFs
      */
     private array $frames = [];
-
-    /**
-     * @var bool Flag indicating multi-frame image (animation)
-     */
-    private bool $isMultiFrame = false;
 
     /**
      * @var array GIF-specific metadata and frame data
@@ -38,42 +33,84 @@ class GDDriver extends Driver
         }
 
         $mimeType = $this->getMimeTypeFromFile($path);
-        $this->mimeType = $mimeType;
-        $this->type = $this->getTypeFromMimeType($mimeType);
+        $extension = $this->getTypeFromMimeType($mimeType);
 
-        switch ($this->type) {
+        $this->setPath($path);
+        $this->setMimeType($mimeType);
+        $this->setExtension($extension);
+
+        // Для WEBP файлов сначала проверяем, не анимированный ли он
+        if ($extension === 'webp') {
+            if ($this->isAnimatedWebp($path)) {
+                throw new ImageException(
+                    'Animated WEBP files are not supported by GD driver'
+                );
+            }
+        }
+
+        $imageResource = null;
+
+        switch ($extension) {
             case 'gif':
-                $this->image = imagecreatefromgif($path);
-                $this->isAnimated = $this->isAnimatedGif($path);
-
-                if ($this->isAnimated && $this->isGifsicle && $this->gifsicle) {
-                    $this->loadGifFrames($path);
-                }
+                $imageResource = imagecreatefromgif($path);
                 break;
             case 'jpeg':
             case 'jpg':
-                $this->image = imagecreatefromjpeg($path);
+                $imageResource = imagecreatefromjpeg($path);
                 break;
             case 'png':
-                $this->image = imagecreatefrompng($path);
+                $imageResource = imagecreatefrompng($path);
                 break;
             case 'webp':
-                $this->image = imagecreatefromwebp($path);
+                $imageResource = @imagecreatefromwebp($path);
                 break;
             case 'bmp':
-                $this->image = imagecreatefrombmp($path);
+                $imageResource = imagecreatefrombmp($path);
                 break;
             default:
-                throw ImageException::unsupportedFormat($this->type);
+                throw ImageException::unsupportedFormat($extension);
         }
 
-        if (!$this->image) {
-            throw ImageException::invalidImage($path);
+        if (!$imageResource || !($imageResource instanceof \GdImage)) {
+            if (empty($this->getPath())) {
+                throw ImageException::invalidInput();
+            } else {
+                throw ImageException::invalidImage(
+                    $this->getPath()
+                );
+            }
         }
 
-        $this->width = imagesx($this->image);
-        $this->height = imagesy($this->image);
+        $this->image = $imageResource;
+
+        $this->setWidth(
+            imagesx($this->image)
+        );
+
+        $this->setHeight(
+            imagesy($this->image)
+        );
+
         $this->preserveTransparency();
+    }
+
+    /**
+     * Check if WEBP file is animated
+     * 
+     * @param string $path Path to WEBP file
+     * @return bool
+     */
+    private function isAnimatedWebp(string $path): bool
+    {
+        $contents = file_get_contents($path);
+        if (!$contents) {
+            return false;
+        }
+
+        // Check for animated WEBP format
+        // Animated WEBP has 'ANIM' chunk
+        $pattern = '/ANIM|ANMF/';
+        return preg_match($pattern, $contents) === 1;
     }
 
     /**
@@ -83,19 +120,24 @@ class GDDriver extends Driver
      */
     private function loadGifFrames(string $path): void
     {
-        if (!$this->gifsicle) {
+        if (!$this->getGifsicle()) {
             return;
         }
 
         try {
             $tempFile = $this->createTempFilePath();
 
-            $this->gif = $this->gifsicle->getInfo($path);
+            $this->gif = $this
+                ->getGifsicle()
+                ->getInfo($path);
 
             copy($path, $tempFile);
 
-            $this->gifsicle->setPath($tempFile);
-            $frameFiles = $this->gifsicle->extractFrames($tempFile);
+            $this->getGifsicle()->setPath($tempFile);
+
+            $frameFiles = $this
+                ->getGifsicle()
+                ->extractFrames($tempFile);
 
             foreach ($frameFiles as $frameFile) {
                 $frame = imagecreatefromgif($frameFile);
@@ -105,38 +147,9 @@ class GDDriver extends Driver
                 @unlink($frameFile);
             }
 
-            $this->isMultiFrame = !empty($this->frames);
-
             @unlink($tempFile);
         } catch (\Exception $e) {
-            $this->isMultiFrame = false;
         }
-    }
-
-    /**
-     * Check if GIF is animated
-     * 
-     * @param string $path GIF file path
-     * @return bool
-     */
-    private function isAnimatedGif(string $path): bool
-    {
-        if (!($fh = @fopen($path, 'rb'))) {
-            return false;
-        }
-
-        $count = 0;
-        while (!feof($fh) && $count < 2) {
-            $chunk = fread($fh, 1024 * 100);
-            $count += preg_match_all(
-                '#\x00\x21\xF9\x04.{4}\x00[\x2C\x21]#s',
-                $chunk,
-                $matches
-            );
-        }
-
-        fclose($fh);
-        return $count > 1;
     }
 
     /**
@@ -146,10 +159,7 @@ class GDDriver extends Driver
     {
         $tempFile = $this->createTempFilePath();
         file_put_contents($tempFile, $data);
-
         $this->loadFromPath($tempFile);
-
-        @unlink($tempFile);
     }
 
     /**
@@ -160,7 +170,7 @@ class GDDriver extends Driver
         ?int $quality = null,
         ?string $format = null
     ): bool {
-        $format = strtolower($format ?: $this->type);
+        $format = strtolower($format ?: $this->getExtension());
 
         // Create directory if doesn't exist
         $dir = dirname($path);
@@ -172,10 +182,14 @@ class GDDriver extends Driver
         // Special handling for animated GIF with gifsicle
         if (
             $format === 'gif' &&
-            $this->isMultiFrame &&
-            $this->isGifsicle &&
-            $this->gifsicle
+            $this->isEnabledGifsicle() &&
+            $this->getGifsicle()
         ) {
+            if (empty($this->gif))
+                $this->loadGifFrames(
+                    $this->getPath()
+                );
+
             return $this->saveWithGifsicle($path, $quality);
         }
 
@@ -194,8 +208,10 @@ class GDDriver extends Driver
      * @param int|null $quality Quality level
      * @return bool
      */
-    private function saveWithGifsicle(string $path, ?int $quality = null): bool
-    {
+    private function saveWithGifsicle(
+        string $path,
+        ?int $quality = null
+    ): bool {
         if (empty($this->frames)) {
             return false;
         }
@@ -230,10 +246,14 @@ class GDDriver extends Driver
                 }
             }
 
-            $this->gifsicle->optimize(null, $tempOutput, [
+            $this->getGifsicle()->optimize(null, $tempOutput, [
                 'optimizationLevel' => 3,
-                'merge' => !empty($framesWithOptions) ? $framesWithOptions : $frameFiles,
+                'colors' => $this->calculateRealColors($quality),
+                'merge' => !empty($framesWithOptions)
+                    ? $framesWithOptions
+                    : $frameFiles,
                 'loopcount' => $this->gif['loopCount'] ?? null,
+                'careful' => true,
             ]);
 
             if (!@copy($tempOutput, $path)) {
@@ -309,7 +329,7 @@ class GDDriver extends Driver
         imagegif($optimized, $tempFile);
 
         // Apply additional optimization with gifsicle
-        if ($this->gifsicle) {
+        if ($this->getGifsicle()) {
             $tempOptimized = $tempFile . '_opt.gif';
 
             $options = [
@@ -320,7 +340,7 @@ class GDDriver extends Driver
                 'careful' => true,
             ];
 
-            if ($this->gifsicle->optimize($tempFile, $tempOptimized, $options)) {
+            if ($this->getGifsicle()->optimize($tempFile, $tempOptimized, $options)) {
                 if (!@copy($tempOptimized, $path)) {
                     throw ImageException::directoryNotFound(dirname($path));
                 }
@@ -360,7 +380,7 @@ class GDDriver extends Driver
             case 'jpeg':
                 return imagejpeg($this->image, $path, $quality);
             case 'png':
-                $compression = $this->qualityToPngCompression($quality);
+                $compression = $this->getPngQuality($quality);
                 return imagepng($this->image, $path, $compression);
             case 'gif':
                 // Save optimized GIF with quality
@@ -387,40 +407,40 @@ class GDDriver extends Driver
     }
 
     /**
-     * Convert quality to PNG compression level
-     * 
-     * @param int $quality Quality level
-     * @return int PNG compression level
-     */
-    private function qualityToPngCompression(int $quality): int
-    {
-        return (int) round(9 - ($quality / 100 * 9));
-    }
-
-    /**
      * {@inheritdoc}
      */
     public function getString(
         ?string $format = null,
         ?int $quality = null
     ): string {
-        $format = $format ?: $this->type;
+        $format = $format ?: $this->getExtension();
 
-        // Для анимированного GIF с gifsicle
         if (
             $format === 'gif' &&
-            $this->isMultiFrame &&
-            $this->isGifsicle &&
-            $this->gifsicle
+            $this->isEnabledGifsicle() &&
+            $this->getGifsicle()
         ) {
-            $tempFile = $this->createTempFilePath();
+            if (empty($this->gif))
+                $this->loadGifFrames(
+                    $this->getPath()
+                );
 
-            if ($this->saveWithGifsicle($tempFile, $quality)) {
-                return $this->getTempFile($tempFile);
+            if ($this->saveWithGifsicle(
+                $this->getPath(),
+                $quality
+            )) {
+                return $this->getTempFile(
+                    $this->getPath(),
+                    false
+                );
             }
         }
 
-        $quality = $this->normalizeQuality($quality, $format);
+        $quality = $this->normalizeQuality(
+            $quality,
+            $format
+        );
+
         $this->preserveTransparency();
 
         ob_start();
@@ -440,7 +460,12 @@ class GDDriver extends Driver
             case 'gif':
                 $tempFile = $this->createTempFilePath();
 
-                if ($this->saveOptimizedGifSingle($tempFile, $quality)) {
+                if (
+                    $this->saveOptimizedGifSingle(
+                        $tempFile,
+                        $quality
+                    )
+                ) {
                     return $this->getTempFile($tempFile);
                 }
 
@@ -474,20 +499,60 @@ class GDDriver extends Driver
      */
     private function applyToAllFrames(callable $operation): void
     {
-        if ($this->isMultiFrame) {
+        if (!$this->image) {
+            throw ImageException::invalidImage(
+                $this->getPath()
+            );
+        }
+
+        if (
+            $this->getExtension() === 'gif' &&
+            empty($this->gif) &&
+            $this->isEnabledGifsicle() &&
+            $this->getGifsicle()
+        ) {
+            $this->loadGifFrames(
+                $this->getPath()
+            );
+        }
+
+        if (
+            !empty($this->frames) &&
+            is_array($this->frames) &&
+            count($this->frames) > 0
+        ) {
             foreach ($this->frames as &$frame) {
+                if (
+                    !$frame instanceof \GdImage
+                    && !is_resource($frame)
+                ) {
+                    continue;
+                }
+
                 $operation($frame);
             }
-            // Update main image to first frame
-            if (!empty($this->frames)) {
+
+            if (!empty($this->frames[0])) {
                 $this->image = $this->frames[0];
-                $this->width = imagesx($this->image);
-                $this->height = imagesy($this->image);
+
+                $this->setWidth(
+                    imagesx($this->image)
+                );
+
+                $this->setHeight(
+                    imagesy($this->image)
+                );
             }
         } else {
             $operation($this->image);
-            $this->width = imagesx($this->image);
-            $this->height = imagesy($this->image);
+
+            $this->setWidth(
+                imagesx($this->image)
+            );
+
+            $this->setHeight(
+                imagesy($this->image)
+            );
         }
     }
 
@@ -644,13 +709,16 @@ class GDDriver extends Driver
         $y = (int) max(0, ($frameHeight - $height) / 2);
 
         // Apply crop
-        $this->applyCropToFrame(
+        [$newWidth, $newHeight] =  $this->applyCropToFrame(
             $frame,
             $x,
             $y,
             $width,
             $height
         );
+
+        $this->setWidth($newWidth);
+        $this->setHeight($newHeight);
     }
 
     /**
@@ -724,20 +792,24 @@ class GDDriver extends Driver
         int $width,
         int $height
     ): void {
+        $newWidth = $width;
+        $newHeight = $height;
+
         $this->applyToAllFrames(function (&$frame) use (
             $x,
             $y,
             $width,
-            $height
+            $height,
+            &$newWidth,
+            &$newHeight
         ) {
-            $this->applyCropToFrame(
-                $frame,
-                $x,
-                $y,
-                $width,
-                $height
-            );
+            $sizes = $this->applyCropToFrame($frame, $x, $y, $width, $height);
+            $newWidth = $sizes[0];
+            $newHeight = $sizes[1];
         });
+
+        $this->setWidth($newWidth);
+        $this->setHeight($newHeight);
     }
 
     /**
@@ -748,6 +820,7 @@ class GDDriver extends Driver
      * @param int $y Start Y coordinate
      * @param int $width Crop width
      * @param int $height Crop height
+     * @return array Новые размеры изображения [width, height]
      */
     private function applyCropToFrame(
         &$frame,
@@ -755,22 +828,77 @@ class GDDriver extends Driver
         int $y,
         int $width,
         int $height
-    ): void {
-        $newImage = imagecreatetruecolor($width, $height);
-        $this->preserveTransparency($newImage);
+    ): array {
+        $srcWidth = imagesx($frame);
+        $srcHeight = imagesy($frame);
+        $srcX = max(0, $x);
+        $srcY = max(0, $y);
+        $srcEndX = min($srcWidth, $x + $width);
+        $srcEndY = min($srcHeight, $y + $height);
+        $newWidth = max(0, $srcEndX - $srcX);
+        $newHeight = max(0, $srcEndY - $srcY);
 
-        imagecopy(
-            $newImage,
-            $frame,
-            0,
-            0,
-            $x,
-            $y,
-            $width,
-            $height
-        );
+        if ($newWidth <= 0 || $newHeight <= 0) {
+            $newWidth = 1;
+            $newHeight = 1;
+            $newImage = imagecreatetruecolor($newWidth, $newHeight);
+
+            $transparent = imagecolorallocatealpha($newImage, 0, 0, 0, 127);
+            imagefill($newImage, 0, 0, $transparent);
+            imagesavealpha($newImage, true);
+
+            if ($this->getExtension() === 'gif') {
+                imagetruecolortopalette($newImage, true, 256);
+            }
+
+            $frame = $newImage;
+            return [$newWidth, $newHeight];
+        }
+
+        if (function_exists('imagecrop')) {
+            $rect = [
+                'x' => $srcX,
+                'y' => $srcY,
+                'width' => $newWidth,
+                'height' => $newHeight
+            ];
+
+            $cropped = imagecrop($frame, $rect);
+
+            if ($cropped !== false) {
+                $frame = $cropped;
+                return [$newWidth, $newHeight];
+            }
+        }
+
+        $newImage = imagecreatetruecolor($newWidth, $newHeight);
+        $transparentIndex = imagecolortransparent($frame);
+
+        if ($transparentIndex >= 0 && $this->getExtension() === 'gif') {
+            $transparentColor = imagecolorsforindex($frame, $transparentIndex);
+            $transparentIndexNew = imagecolorallocate(
+                $newImage,
+                $transparentColor['red'],
+                $transparentColor['green'],
+                $transparentColor['blue']
+            );
+            imagefill($newImage, 0, 0, $transparentIndexNew);
+            imagecolortransparent($newImage, $transparentIndexNew);
+        } else {
+            $transparent = imagecolorallocatealpha($newImage, 0, 0, 0, 127);
+            imagefill($newImage, 0, 0, $transparent);
+            imagesavealpha($newImage, true);
+        }
+
+        imagecopy($newImage, $frame, 0, 0, $srcX, $srcY, $newWidth, $newHeight);
+
+        if ($this->getExtension() === 'gif') {
+            imagetruecolortopalette($newImage, true, 256);
+        }
 
         $frame = $newImage;
+
+        return [$newWidth, $newHeight];
     }
 
     /**
@@ -778,37 +906,54 @@ class GDDriver extends Driver
      */
     public function rotate(
         float $angle,
-        string $backgroundColor = '#000000'
+        string $backgroundColor = 'transparent'
     ): void {
         $this->applyToAllFrames(function (&$frame) use (
             $angle,
             $backgroundColor
         ) {
-            $this->applyRotateToFrame(
-                $frame,
-                $angle,
-                $backgroundColor
-            );
-        });
-    }
+            $angle = fmod($angle, 360);
+            if ($angle < 0) $angle += 360;
+            if ($angle == 0) return;
 
-    /**
-     * Apply rotate to frame
-     * 
-     * @param GdImage $frame GD image resource
-     * @param float $angle Rotation angle
-     * @param string $backgroundColor Background color
-     */
-    private function applyRotateToFrame(
-        &$frame,
-        float $angle,
-        string $backgroundColor
-    ): void {
-        $rgb = $this->hexToRgb($backgroundColor);
-        $bgColor = imagecolorallocate($frame, $rgb[0], $rgb[1], $rgb[2]);
-        $rotated = imagerotate($frame, $angle, $bgColor);
-        imagecolordeallocate($frame, $bgColor);
-        $frame = $rotated;
+            $srcWidth = imagesx($frame);
+            $srcHeight = imagesy($frame);
+            $radians = deg2rad($angle);
+            $cos = cos($radians);
+            $sin = sin($radians);
+            $newWidth = abs($srcWidth * $cos) + abs($srcHeight * $sin);
+            $newHeight = abs($srcWidth * $sin) + abs($srcHeight * $cos);
+            $rotated = imagecreatetruecolor((int)round($newWidth), (int)round($newHeight));
+
+            if (strtolower($backgroundColor) === 'transparent') {
+                imagesavealpha($rotated, true);
+                $background = imagecolorallocatealpha($rotated, 0, 0, 0, 127);
+                imagefill($rotated, 0, 0, $background);
+            } else {
+                $rgb = $this->hexToRgb($backgroundColor);
+                $background = imagecolorallocate($rotated, $rgb[0], $rgb[1], $rgb[2]);
+                imagefill($rotated, 0, 0, $background);
+            }
+
+            $transparentColor = imagecolortransparent($frame);
+            if ($transparentColor == -1) {
+                $transparentColor = $background;
+            }
+
+            $rotatedResource = imagerotate($frame, $angle, $transparentColor);
+            $rotatedWidth = imagesx($rotatedResource);
+            $rotatedHeight = imagesy($rotatedResource);
+            $offsetX = (int)(($newWidth - $rotatedWidth) / 2);
+            $offsetY = (int)(($newHeight - $rotatedHeight) / 2);
+
+            imagecopy($rotated, $rotatedResource, $offsetX, $offsetY, 0, 0, $rotatedWidth, $rotatedHeight);
+
+            if (strtolower($backgroundColor) === 'transparent') {
+                imagesavealpha($rotated, true);
+            }
+
+            $frame = $rotated;
+        });
     }
 
     /**
@@ -898,7 +1043,6 @@ class GDDriver extends Driver
                 [-$strength, -$strength, -$strength]
             ];
 
-            // Сумма для нормализации
             $sum = 0;
             foreach ($matrix as $row) {
                 foreach ($row as $value) {
@@ -1140,12 +1284,23 @@ class GDDriver extends Driver
     ): void {
         $target = $image ?: $this->image;
 
-        if (in_array($this->type, ['png', 'gif'])) {
+        if (
+            in_array(
+                $this->getExtension(),
+                ['png', 'gif', 'webp']
+            )
+        ) {
             imagealphablending($target, false);
             imagesavealpha($target, true);
 
             if ($fillTransparent && $image !== null) {
-                $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+                $transparent = imagecolorallocatealpha(
+                    $target,
+                    255,
+                    255,
+                    255,
+                    127
+                );
                 imagefill($target, 0, 0, $transparent);
             }
         } else {
