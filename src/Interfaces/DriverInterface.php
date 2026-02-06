@@ -245,7 +245,7 @@ interface DriverInterface
      */
     public function rotate(
         float $angle,
-        string $backgroundColor = '#000000'
+        string $backgroundColor = 'transparent'
     ): void;
 
     /**

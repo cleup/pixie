@@ -33,7 +33,7 @@ class GDDriver extends Driver
         }
 
         $mimeType = $this->getMimeTypeFromFile($path);
-        $extension = $this->getTypeFromMimeType($mimeType);
+        $extension = $this->getExtensionFromMimeType($mimeType);
 
         $this->setPath($path);
         $this->setMimeType($mimeType);

@@ -47,7 +47,7 @@ class ImagickDriver extends Driver
             );
 
             $this->setExtension(
-                $this->getTypeFromMimeType(
+                $this->getExtensionFromMimeType(
                     $this->getMimeType()
                 )
             );
@@ -96,7 +96,7 @@ class ImagickDriver extends Driver
             );
 
             $this->setExtension(
-                $this->getTypeFromMimeType(
+                $this->getExtensionFromMimeType(
                     $this->getMimeType()
                 )
             );

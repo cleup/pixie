@@ -246,7 +246,7 @@ interface ImageInterface
      * @param string $backgroundColor Background color
      * @return self
      */
-    public function rotate(float $angle, string $backgroundColor = '#000000'): self;
+    public function rotate(float $angle, string $backgroundColor = 'transparent'): self;
 
     /**
      * Flip image

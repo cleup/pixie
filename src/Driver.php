@@ -490,13 +490,13 @@ abstract class Driver implements DriverInterface
     }
 
     /**
-     * Get image type from MIME type
+     * Get image extension from MIME type
      *
      * @param string $mimeType MIME type
      * @return string
      * @throws ImageException When unsupported format
      */
-    protected function getTypeFromMimeType(string $mimeType): string
+    protected function getExtensionFromMimeType(string $mimeType): string
     {
         $mimeToType = [
             'image/jpeg' => 'jpeg',
