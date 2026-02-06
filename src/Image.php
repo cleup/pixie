@@ -22,11 +22,6 @@ class Image implements ImageInterface
     private string $driverName;
 
     /**
-     * @var bool Force using Gifsicle for GIF optimization even with other drivers
-     */
-    private bool $forceGifsicle = false;
-
-    /**
      * Constructor
      *
      * @param string $driver Driver name (auto|gd|imagick)
@@ -42,7 +37,6 @@ class Image implements ImageInterface
      */
     public function useGifsicle(bool $enabled = true): self
     {
-        $this->forceGifsicle = $enabled;
         $this->driver->useGifsicle($enabled);
         return $this;
     }
@@ -50,17 +44,9 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function isForceGifsicle(): bool
+    public function isAvailableGifsicle(): bool
     {
-        return $this->forceGifsicle;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isGifsicleAvailable(): bool
-    {
-        return $this->driver->isGifsicleAvailable();
+        return $this->driver->isAvailableGifsicle();
     }
 
     /**
@@ -134,7 +120,11 @@ class Image implements ImageInterface
         ?int $quality = null,
         ?string $format = null
     ): bool {
-        return $this->driver->save($path, $quality, $format);
+        return $this->driver->save(
+            $path,
+            $quality,
+            $format
+        );
     }
 
     /**
@@ -144,7 +134,10 @@ class Image implements ImageInterface
         ?string $format = null,
         ?int $quality = null
     ): string {
-        return $this->driver->getString($format, $quality);
+        return $this->driver->getString(
+            $format,
+            $quality
+        );
     }
 
     /**
@@ -154,7 +147,7 @@ class Image implements ImageInterface
         ?string $format = null,
         ?int $quality = null
     ): void {
-        $format = $format ?: $this->getType();
+        $format = $format ?: $this->getExtension();
         $data = $this->toString($format, $quality);
 
         header('Content-Type: ' . $this->getMimeType());
@@ -189,9 +182,9 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function getType(): string
+    public function getExtension(): string
     {
-        return $this->driver->getType();
+        return $this->driver->getExtension();
     }
 
     /**
@@ -219,7 +212,9 @@ class Image implements ImageInterface
         bool $preserveAspectRatio = true,
         bool $upscale = false
     ): self {
-        $height = $height ?? (int) round($width / $this->getAspectRatio());
+        $height = $height ?? (int) round(
+            $width / $this->getAspectRatio()
+        );
 
         $this->driver->resize(
             $width,
@@ -234,14 +229,44 @@ class Image implements ImageInterface
     /**
      * {@inheritdoc}
      */
-    public function resizeToWidth(int $width, bool $upscale = false): self
-    {
+    public function resizeCanvas(
+        int $width,
+        ?int $height = null,
+        string $position = 'center'
+    ): self {
+        $height = $height ?? (int) round(
+            $width / $this->getAspectRatio()
+        );
+
+        $this->driver->resizeCanvas(
+            $width,
+            $height,
+            $position
+        );
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function resizeToWidth(
+        int $width,
+        bool $upscale = false
+    ): self {
         if (!$upscale && $width > $this->getWidth()) {
             return $this;
         }
 
         $height = (int) round($width / $this->getAspectRatio());
-        $this->driver->resize($width, $height, false, $upscale);
+
+        $this->driver->resize(
+            $width,
+            $height,
+            false,
+            $upscale
+        );
+
         return $this;
     }
 
@@ -257,7 +282,13 @@ class Image implements ImageInterface
         }
 
         $width = (int) round($height * $this->getAspectRatio());
-        $this->driver->resize($width, $height, false, $upscale);
+        
+        $this->driver->resize(
+            $width,
+            $height,
+            false,
+            $upscale
+        );
         return $this;
     }
 
@@ -284,7 +315,12 @@ class Image implements ImageInterface
             $height = min($height, $this->getHeight());
         }
 
-        $this->driver->resize($width, $height, false, $upscale);
+        $this->driver->resize(
+            $width,
+            $height,
+            false,
+            $upscale
+        );
         return $this;
     }
 
@@ -296,7 +332,11 @@ class Image implements ImageInterface
         int $height,
         bool $upscale = false
     ): self {
-        $this->driver->fit($width, $height, $upscale);
+        $this->driver->fit(
+            $width,
+            $height,
+            $upscale
+        );
         return $this;
     }
 
@@ -309,7 +349,12 @@ class Image implements ImageInterface
     ): self {
         $width = (int) round($this->getWidth() * $ratio);
         $height = (int) round($this->getHeight() * $ratio);
-        $this->driver->resize($width, $height, false, $allowUpscale);
+        $this->driver->resize(
+            $width,
+            $height,
+            false,
+            $allowUpscale
+        );
         return $this;
     }
 
@@ -322,7 +367,12 @@ class Image implements ImageInterface
         int $width,
         int $height
     ): self {
-        $this->driver->crop($x, $y, $width, $height);
+        $this->driver->crop(
+            $x,
+            $y,
+            $width,
+            $height
+        );
         return $this;
     }
 
@@ -334,7 +384,11 @@ class Image implements ImageInterface
         int $height,
         bool $upscale = false
     ): self {
-        $this->driver->fit($width, $height, $upscale);
+        $this->driver->fit(
+            $width,
+            $height,
+            $upscale
+        );
         return $this;
     }
 
@@ -343,9 +397,12 @@ class Image implements ImageInterface
      */
     public function rotate(
         float $angle,
-        string $backgroundColor = '#000000'
+        string $backgroundColor = 'transparent'
     ): self {
-        $this->driver->rotate($angle, $backgroundColor);
+        $this->driver->rotate(
+            $angle,
+            $backgroundColor
+        );
         return $this;
     }
 

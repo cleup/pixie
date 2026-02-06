@@ -41,7 +41,7 @@ interface DriverInterface
      *
      * @return bool
      */
-    public function isGifsicleAvailable(): bool;
+    public function isAvailableGifsicle(): bool;
 
     /**
      * Set custom GIFsicle path
@@ -137,11 +137,11 @@ interface DriverInterface
     public function getHeight(): int;
 
     /**
-     * Get image type
+     * Get a prepared image extension
      *
      * @return string
      */
-    public function getType(): string;
+    public function getExtension(): string;
 
     /**
      * Get image MIME type
@@ -156,6 +156,13 @@ interface DriverInterface
      * @return bool
      */
     public function isAnimated(): bool;
+
+    /**
+     * Get image path
+     *
+     * @return string
+     */
+    public function getPath(): string;
 
     /**
      * Calculate real number of colors based on quality
@@ -238,7 +245,7 @@ interface DriverInterface
      */
     public function rotate(
         float $angle,
-        string $backgroundColor = '#000000'
+        string $backgroundColor = 'transparent'
     ): void;
 
     /**

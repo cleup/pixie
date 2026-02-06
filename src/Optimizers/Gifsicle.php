@@ -257,6 +257,7 @@ class Gifsicle
             'loopcount' => null,
             'no-background' => false,
             'transparent' => null,
+            'preserveTransparency' => false,
         ];
 
         $options = array_merge($defaultOptions, $options);
@@ -330,12 +331,16 @@ class Gifsicle
             $command[] = '--loopcount=' . (int)$options['loopcount'];
         }
 
-        if (isset($options['no-background'])) {
+        if ($options['no-background']) {
             $command[] = '--no-background';
         }
 
         if (isset($options['transparent'])) {
             $command[] = '--transparent=' . escapeshellarg($options['transparent']);
+        }
+
+        if ($options['preserveTransparency']) {
+            $command[] = '--preserve-transparency';
         }
 
         if (isset($options['merge']) && is_array($options['merge'])) {
@@ -350,7 +355,13 @@ class Gifsicle
                         unset($layer['path']);
 
                         foreach ($layer as $optionKey => $optionValue) {
-                            $mergeWithOptions .= ' --' . $optionKey . '=' . $optionValue;
+                            if ($optionKey === 'delay') {
+                                $mergeWithOptions .= ' --delay=' . (int)$optionValue;
+                            } elseif ($optionKey === 'disposal') {
+                                $mergeWithOptions .= ' --disposal=' . escapeshellarg($optionValue);
+                            } elseif ($optionKey === 'position') {
+                                $mergeWithOptions .= ' --position=' . escapeshellarg($optionValue);
+                            }
                         }
 
                         $mergeWithOptions .= ' ' . $path;
@@ -509,11 +520,14 @@ class Gifsicle
             'no-comments' => true,
             'no-extensions' => true,
             'careful' => true,
+            'preserveTransparency' => false,
         ];
 
         $colorQuality =  (int)($maxColors * ($quality ?? $quality)) / 100;
         $options['colors'] = $colorQuality;
-        $options['lossy'] = $this->getLossy() > 0 ? $this->getLossy() : 100 - $quality;
+        $options['lossy'] = $this->getLossy() > 0
+            ? $this->getLossy()
+            : 100 - $quality;
 
         return $this->optimize($inputFile, $outputFile, $options);
     }
@@ -556,6 +570,7 @@ class Gifsicle
         chdir($tempDir);
 
         $command = escapeshellcmd($this->binaryPath) .
+            ' --unoptimize' .
             ' --explode' .
             ' ' . escapeshellarg($absoluteInputFile) .
             ' 2>&1';
@@ -599,7 +614,7 @@ class Gifsicle
     ): bool {
         return $this->optimize($inputFile, $outputFile, [
             'loopcount' => $loopCount,
-            'optimizationLevel' => 1,
+            'optimizationLevel' => 1
         ]);
     }
 
@@ -617,7 +632,7 @@ class Gifsicle
         return $this->optimize($inputFile, $outputFile, [
             'no-comments' => true,
             'no-extensions' => true,
-            'optimizationLevel' => 2,
+            'optimizationLevel' => 2
         ]);
     }
 }

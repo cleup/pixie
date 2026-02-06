@@ -1,5 +1,7 @@
 coverage
 test-app
 composer.lock
+.phpunit.cache
 .phpunit.result.cache
+tests/resources
 vendor

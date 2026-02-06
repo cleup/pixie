@@ -66,7 +66,7 @@ $image->resize(800, 600)
 // Create thumbnail
 $image->fit(200, 200)
       ->greyscale()
-      ->save('thumbnail.jpg');
+      ->save('/path/to/thumbnail.jpg');
 ```
 
 ### Using Image Class Directly
@@ -80,7 +80,7 @@ use Cleup\Pixie\Image;
 $image = new Image('imagick'); // or 'gd'
 $image->load('input.png')
       ->resize(400, 300)
-      ->save('output.webp', 85, 'webp');
+      ->save('/path/to/output.webp', 85, 'webp');
 ```
 
 ### Driver Comparison
@@ -221,11 +221,8 @@ $image->invert();
 $width = $image->getWidth();
 $height = $image->getHeight();
 $ratio = $image->getAspectRatio();
-$type = $image->getType();
+$extension = $image->getExtension();
 $isAnimated = $image->isAnimated(); // Imagick only
-
-// Remove EXIF data
-$image->stripExif();
 
 // Get driver instance
 $driver = $image->getDriver();
@@ -291,7 +288,7 @@ try {
 - `scale(float $ratio): self`
 - `crop(int $x, int $y, int $width, int $height): self`
 - `fit(int $width, int $height): self`
-- `rotate(float $angle, string $backgroundColor = '#000000'): self`
+- `rotate(float $angle, string $backgroundColor = 'transparent'): self`
 - `flip(string $mode = 'horizontal'): self`
 - `flipHorizontal(): self`
 - `flipVertical(): self`
@@ -309,7 +306,6 @@ try {
 - `pixelate(int $size): self`
 - `invert(): self`
 - `watermark($watermark, string $position = 'bottom-right', int $offsetX = 10, int $offsetY = 10): self`
-- `stripExif(): self`
 
 ## License
 
