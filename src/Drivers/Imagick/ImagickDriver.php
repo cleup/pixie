@@ -1011,6 +1011,9 @@ class ImagickDriver extends Driver
                 return $this->processWebp($image, $quality);
             case 'png':
                 return $this->processPng($image, $quality);
+            case 'jpeg':
+            case 'jpg':
+                return $this->processJpeg($image, $quality);
             case 'gif':
                 return $image;
             case 'bmp':
@@ -1019,16 +1022,7 @@ class ImagickDriver extends Driver
                 if ($format !== $this->getExtension()) {
                     $image->setImageFormat($format);
                 }
-
-                $this->setImageQuality($image, $quality, $format);
-
-                // Optimization for JPEG
-                if (in_array($format, ['jpeg', 'jpg'])) {
-                    $image->setImageCompression(Imagick::COMPRESSION_JPEG);
-                    $image->setInterlaceScheme(Imagick::INTERLACE_PLANE);
-                    $image->stripImage();
-                }
-
+                $image->stripImage();
                 return $image;
         }
     }
@@ -1040,17 +1034,38 @@ class ImagickDriver extends Driver
      * @param int $quality Quality level
      * @return Imagick Processed image
      */
-    private function processWebp(
-        Imagick $image,
-        int $quality
-    ): Imagick {
-        $image->setImageFormat('WEBP');
-        $image->setOption('webp:method', $this->getWebpMethod($quality));
-        $image->setOption('webp:lossless', 'false');
-        $image = $image->mergeImageLayers(Imagick::LAYERMETHOD_OPTIMIZEPLUS);
-        $image->setImageCompressionQuality($quality);
+    private function processWebp(Imagick $image, int $quality): Imagick
+    {
+        $webpImage = clone $image;
+        $webpImage->setImageFormat('WEBP');
+        $webpImage->setImageCompressionQuality($quality);
 
-        return $image;
+        if ($quality >= 90) {
+            $webpImage->setOption('webp:method', '4');
+            $webpImage->setOption('webp:lossless', 'false');
+            $webpImage->setOption('webp:alpha-quality', '90');
+        } elseif ($quality >= 70) {
+            $webpImage->setOption('webp:method', '5');
+            $webpImage->setOption('webp:lossless', 'false');
+            $webpImage->setOption('webp:alpha-quality', '80');
+        } else {
+            $webpImage->setOption('webp:method', '6');
+            $webpImage->setOption('webp:lossless', 'false');
+            $webpImage->setOption('webp:alpha-quality', '60');
+        }
+
+        $webpImage->setOption('webp:auto-filter', 'true');
+        $webpImage->setOption('webp:preprocessing', '0');
+
+        if ($this->isAnimated()) {
+            $webpImage = $webpImage->mergeImageLayers(Imagick::LAYERMETHOD_OPTIMIZEPLUS);
+        }
+
+        $webpImage->stripImage();
+        $webpImage->setImageColorspace(Imagick::COLORSPACE_SRGB);
+        $webpImage->setImageDepth(8);
+
+        return $webpImage;
     }
 
     /**
@@ -1080,16 +1095,78 @@ class ImagickDriver extends Driver
     {
         $pngImage = clone $image;
         $pngImage->setImageFormat('PNG');
-        $compressionLevel = $this->getPngQuality($quality);
-        $pngImage->setImageCompressionQuality($compressionLevel);
-        $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
         $pngImage->stripImage();
 
-        if ($pngImage->getImageType() === Imagick::IMGTYPE_TRUECOLOR) {
-            $pngImage->setImageType(Imagick::IMGTYPE_PALETTE);
+        if ($quality >= 95) {
+            $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
+            $pngImage->setImageCompressionQuality(9);
+        } elseif ($quality >= 70) {
+            $colors = (int)(128 + ($quality - 70) * 4.2);
+
+            if ($pngImage->getImageAlphaChannel()) {
+                $pngImage->quantizeImage(
+                    $colors,
+                    Imagick::COLORSPACE_SRGB,
+                    0,
+                    true,
+                    false
+                );
+            }
+
+            $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
+            $pngImage->setImageCompressionQuality(9);
+        } else {
+            $colors = max(16, (int)($quality * 2.56));
+
+            $pngImage->quantizeImage(
+                $colors,
+                Imagick::COLORSPACE_SRGB,
+                0,
+                true,
+                $quality < 40
+            );
+
+            $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
+            $pngImage->setImageCompressionQuality(9);
         }
 
+        $pngImage->setImageDepth(8);
+        $pngImage->setOption('png:include-chunk', 'none');
+        $pngImage->setOption('png:compression-filter', '5');
+        $pngImage->setOption('png:compression-strategy', '1');
+
         return $pngImage;
+    }
+
+    /**
+     * Process JPEG image
+     * 
+     * @param Imagick $image Image object
+     * @param int $quality Quality level
+     * @return Imagick Processed image
+     */
+    private function processJpeg(Imagick $image, int $quality): Imagick
+    {
+        $jpegImage = clone $image;
+        $jpegImage->setImageFormat('JPEG');
+        $jpegImage->setImageCompressionQuality($quality);
+        $jpegImage->setImageCompression(Imagick::COMPRESSION_JPEG);
+        $jpegImage->stripImage();
+
+        if ($quality >= 90) {
+            $jpegImage->setInterlaceScheme(Imagick::INTERLACE_NO);
+        } elseif ($quality >= 70) {
+            $jpegImage->setInterlaceScheme(Imagick::INTERLACE_NO);
+        } else {
+            $jpegImage->setInterlaceScheme(Imagick::INTERLACE_NO);
+            $jpegImage->setSamplingFactors(['2x2', '1x1', '1x1']);
+        }
+
+        $jpegImage->setImageColorspace(Imagick::COLORSPACE_SRGB);
+        $jpegImage->setImageDepth(8);
+        $jpegImage->setOption('jpeg:optimize-coding', 'true');
+
+        return $jpegImage;
     }
 
     /**
