@@ -568,9 +568,9 @@ abstract class Driver implements DriverInterface
     ): int {
         if ($quality === null) {
             return match ($format) {
-                'png' => 90,
+                'png' => 85,
                 'gif' => 95,
-                default => 95
+                default => 85
             };
         }
 
@@ -621,7 +621,7 @@ abstract class Driver implements DriverInterface
      */
     protected function getPngQuality(int $quality): int
     {
-        return (int) ((100 - $quality) / 100 * 9);
+        return (int) round(9 - ($quality * 9 / 100));
     }
 
     /**
