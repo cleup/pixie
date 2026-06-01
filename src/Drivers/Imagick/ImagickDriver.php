@@ -1130,15 +1130,10 @@ class ImagickDriver extends Driver
             $pngImage->setImageCompressionQuality(9);
         }
 
-        // 3. Дополнительные оптимизации
-        $pngImage->setImageDepth(8); // 8 бит на канал достаточно
-
-        // 4. Убираем ненужные чанки
+        $pngImage->setImageDepth(8);
         $pngImage->setOption('png:include-chunk', 'none');
-
-        // 5. Оптимизируем фильтры (ImageMagick сам выберет лучшие)
-        $pngImage->setOption('png:compression-filter', '5'); // Все фильтры
-        $pngImage->setOption('png:compression-strategy', '1'); // Оптимальная стратегия
+        $pngImage->setOption('png:compression-filter', '5');
+        $pngImage->setOption('png:compression-strategy', '1');
 
         return $pngImage;
     }
