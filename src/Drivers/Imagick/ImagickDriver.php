@@ -1097,34 +1097,29 @@ class ImagickDriver extends Driver
         $pngImage->setImageFormat('PNG');
         $pngImage->stripImage();
 
+        $hasAlpha = $pngImage->getImageAlphaChannel();
+
         if ($quality >= 95) {
             $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
             $pngImage->setImageCompressionQuality(9);
-        } elseif ($quality >= 70) {
-            $colors = (int)(128 + ($quality - 70) * 4.2);
-
-            if ($pngImage->getImageAlphaChannel()) {
-                $pngImage->quantizeImage(
-                    $colors,
-                    Imagick::COLORSPACE_SRGB,
-                    0,
-                    true,
-                    false
-                );
-            }
-
-            $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
-            $pngImage->setImageCompressionQuality(9);
         } else {
-            $colors = max(16, (int)($quality * 2.56));
+            if ($quality >= 70) {
+                $colors = (int)(128 + ($quality - 70) * 4.2);
+            } else {
+                $colors = max(16, (int)($quality * 2.56));
+            }
 
             $pngImage->quantizeImage(
                 $colors,
                 Imagick::COLORSPACE_SRGB,
                 0,
                 true,
-                $quality < 40
+                false
             );
+
+            if ($hasAlpha) {
+                $pngImage->setImageAlphaChannel(Imagick::ALPHACHANNEL_ACTIVATE);
+            }
 
             $pngImage->setImageCompression(Imagick::COMPRESSION_ZIP);
             $pngImage->setImageCompressionQuality(9);
